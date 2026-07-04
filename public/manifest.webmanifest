@@ -1,0 +1,17 @@
+{
+  "name": "InnerForm",
+  "short_name": "InnerForm",
+  "description": "AI nutrition coach. Built from the inside out.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

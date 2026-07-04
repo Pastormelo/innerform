@@ -1,26 +1,300 @@
 @import "tailwindcss";
 
+/* ============================================================
+   InnerForm — Design tokens (ported from the InnerForm Design
+   System). Dark-first slate canvas, glass cards, forest green
+   primary, gold reserved for achievement.
+   ============================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ---- Ink (neutral gray scale) ---- */
+  --ink-950: #111827;
+  --ink-900: #18212E;
+  --ink-850: #1B2430;
+  --ink-800: #212C3A;
+  --ink-750: #283444;
+  --ink-700: #31404F;
+  --ink-600: #415263;
+  --ink-500: #5C6B7C;
+  --ink-400: #667085;
+  --ink-300: #94A3B8;
+  --ink-200: #CBD2DC;
+  --ink-100: #E5E7EB;
+  --ink-50:  #F7F8F9;
+  --white:   #FFFFFF;
+
+  /* ---- Silver ---- */
+  --silver-100: #EDEFF2;
+  --silver-300: #C9CDD3;
+  --grad-silver: linear-gradient(160deg, #F4F5F7 0%, #C9CDD3 100%);
+
+  /* ---- Forest (signature brand green) ---- */
+  --forest-300: #A8D8C0;
+  --forest-400: #4FC58C;
+  --forest-500: #3BAA74;
+  --forest-600: #1F5E4A;
+  --forest-700: #17493A;
+
+  /* ---- Slate Navy ---- */
+  --navy-400: #33495C;
+  --navy-500: #243746;
+  --navy-600: #1B2A36;
+
+  /* ---- Warm Gold (achievement only) ---- */
+  --gold-400: #E6BC6B;
+  --gold-500: #D9A441;
+  --gold-600: #B9862B;
+
+  /* ---- Macro / data palette ---- */
+  --energy-400: #4FC58C;
+  --energy-500: #3BAA74;
+  --energy-600: #2E8B57;
+  --protein-400: #5B8AF0;
+  --protein-500: #3B6FE0;
+  --protein-600: #2E56C4;
+  --carbs-400: #F2BC5C;
+  --carbs-500: #E8A83E;
+  --carbs-600: #C4831F;
+  --fat-400: #A58BDD;
+  --fat-500: #8B6FC9;
+  --fat-600: #6F51B0;
+  --fiber-400: #74C9F0;
+  --fiber-500: #4FB6E8;
+  --fiber-600: #2E98D6;
+
+  /* ---- Semantic states ---- */
+  --success-500: #2E8B57;
+  --warning-500: #E67E22;
+  --danger-500:  #C0392B;
+  --info-500:    #4FB6E8;
+
+  /* ---- Goal-adaptive accents ---- */
+  --goal-loss:     var(--forest-500);
+  --goal-gain:     #3B6FE0;
+  --goal-maintain: #526073;
+  --goal-muscle:   #6E7B8A;
+  --goal-prep:     #E8A83E;
+
+  /* ---- Surfaces (dark default) ---- */
+  --surface-app:      var(--ink-950);
+  --surface-inset:    var(--ink-900);
+  --surface-raised:   var(--ink-850);
+  --surface-card:     rgba(255,255,255,0.055);
+  --surface-card-2:   rgba(255,255,255,0.09);
+  --surface-light:    var(--white);
+  --surface-light-2:  var(--ink-50);
+
+  /* ---- Glass ---- */
+  --glass-bg:        rgba(255,255,255,0.055);
+  --glass-bg-strong: rgba(20,28,40,0.62);
+  --glass-border:    rgba(255,255,255,0.12);
+  --glass-light:     rgba(255,255,255,0.62);
+  --glass-highlight: inset 0 1px 0 rgba(255,255,255,0.10);
+
+  --text-primary:   #FFFFFF;
+  --text-secondary: rgba(255,255,255,0.70);
+  --text-muted:     rgba(255,255,255,0.45);
+  --text-on-forest:   var(--ink-950);
+  --text-on-light:            #1F2933;
+  --text-secondary-on-light:  #667085;
+  --text-muted-on-light:      var(--ink-400);
+
+  --accent:      var(--forest-500);
+  --accent-ink:  var(--ink-950);
+
+  --border-subtle:   rgba(255,255,255,0.08);
+  --border-strong:   rgba(255,255,255,0.16);
+  --border-on-light: rgba(10,12,15,0.10);
+  --focus-ring:      var(--forest-500);
+
+  /* ---- Signature gradients ---- */
+  --grad-forest:  linear-gradient(135deg, #4FC58C 0%, #1F5E4A 100%);
+  --grad-gold:    linear-gradient(135deg, #E6BC6B 0%, #B9862B 100%);
+  --grad-navy:    linear-gradient(135deg, #33495C 0%, #1B2A36 100%);
+  --grad-energy:  linear-gradient(135deg, #3BAA74 0%, #2E8B57 100%);
+  --grad-protein: linear-gradient(135deg, #3B6FE0 0%, #5B8AF0 100%);
+  --grad-carbs:   linear-gradient(135deg, #E8A83E 0%, #D98A20 100%);
+  --grad-fat:     linear-gradient(135deg, #A58BDD 0%, #6F51B0 100%);
+  --grad-fiber:   linear-gradient(135deg, #74C9F0 0%, #2E98D6 100%);
+  --grad-ink:     linear-gradient(180deg, #1B2430 0%, #111827 100%);
+  --grad-hero:    radial-gradient(110% 80% at 50% 0%, rgba(59,170,116,0.13) 0%, rgba(11,12,14,0) 55%), linear-gradient(180deg, #18212E 0%, #111827 100%);
+
+  /* ---- Typography ---- */
+  --font-display: var(--font-big-shoulders), system-ui, sans-serif;
+  --font-sans: var(--font-hanken), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-num: var(--font-display);
+
+  --fs-display-2xl: 76px;
+  --fs-display-xl:  60px;
+  --fs-display-lg:  46px;
+  --fs-metric-xl:   68px;
+  --fs-metric-lg:   48px;
+  --fs-metric-md:   32px;
+  --fs-h1: 36px;
+  --fs-h2: 28px;
+  --fs-h3: 22px;
+  --fs-h4: 18px;
+  --fs-body-lg:  18px;
+  --fs-body:     16px;
+  --fs-body-sm:  14px;
+  --fs-caption:  13px;
+  --fs-overline: 12px;
+
+  --lh-tight:   0.95;
+  --lh-snug:    1.1;
+  --lh-heading: 1.15;
+  --lh-body:    1.55;
+
+  --ls-tighter:  -0.03em;
+  --ls-tight:    -0.015em;
+  --ls-wide:     0.04em;
+  --ls-overline: 0.14em;
+
+  /* ---- Radii ---- */
+  --radius-xs:     6px;
+  --radius-sm:     10px;
+  --radius-md:     14px;
+  --radius-lg:     20px;
+  --radius-xl:     28px;
+  --radius-2xl:    36px;
+  --radius-pill:   999px;
+  --radius-circle: 50%;
+
+  /* ---- Effects ---- */
+  --shadow-xs: 0 1px 2px rgba(8,10,14,0.24);
+  --shadow-sm: 0 2px 8px rgba(8,10,14,0.28);
+  --shadow-md: 0 8px 24px rgba(8,10,14,0.34);
+  --shadow-lg: 0 20px 48px rgba(8,10,14,0.44);
+  --shadow-card-light: 0 2px 12px rgba(16,24,40,0.08), 0 1px 3px rgba(16,24,40,0.06);
+  --glow-forest:  0 8px 32px rgba(59,170,116,0.35);
+  --glow-gold:    0 8px 32px rgba(217,164,65,0.35);
+  --glow-protein: 0 8px 32px rgba(59,111,224,0.35);
+  --glow-carbs:   0 8px 32px rgba(232,168,62,0.35);
+  --blur-sm: 8px;
+  --blur-md: 20px;
+  --blur-lg: 40px;
+
+  --ease-out:    cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0.05, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.40, 0.50, 1);
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+  --dur-ring: 900ms;
+
+  --z-nav:     100;
+  --z-sticky:  200;
+  --z-overlay: 900;
+  --z-modal:   1000;
+  --z-toast:   1100;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ink-950: var(--ink-950);
+  --color-ink-900: var(--ink-900);
+  --color-ink-850: var(--ink-850);
+  --color-ink-800: var(--ink-800);
+  --color-ink-700: var(--ink-700);
+  --color-ink-500: var(--ink-500);
+  --color-ink-400: var(--ink-400);
+  --color-ink-300: var(--ink-300);
+  --color-ink-100: var(--ink-100);
+  --color-ink-50: var(--ink-50);
+  --color-forest-300: var(--forest-300);
+  --color-forest-400: var(--forest-400);
+  --color-forest-500: var(--forest-500);
+  --color-forest-600: var(--forest-600);
+  --color-forest-700: var(--forest-700);
+  --color-navy-400: var(--navy-400);
+  --color-navy-500: var(--navy-500);
+  --color-navy-600: var(--navy-600);
+  --color-gold-400: var(--gold-400);
+  --color-gold-500: var(--gold-500);
+  --color-energy-500: var(--energy-500);
+  --color-protein-500: var(--protein-500);
+  --color-carbs-500: var(--carbs-500);
+  --color-fat-500: var(--fat-500);
+  --color-fiber-500: var(--fiber-500);
+  --color-success: var(--success-500);
+  --color-warning: var(--warning-500);
+  --color-danger: var(--danger-500);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-primary);
+  background: var(--surface-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
+::selection { background: var(--forest-500); color: var(--ink-950); }
+
+/* ---- Brand type helpers ---- */
+.if-overline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-overline);
+  letter-spacing: var(--ls-overline);
+  text-transform: uppercase;
+  line-height: 1;
+}
+.if-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  text-transform: uppercase;
+}
+.if-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* ---- Glass surfaces ---- */
+.if-glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-highlight);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+.if-glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: saturate(160%) blur(20px);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+  border-top: 1px solid var(--border-subtle);
+}
+.if-interactive {
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out), background var(--dur-fast) var(--ease-out);
+  cursor: pointer;
+}
+.if-interactive:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); background: var(--surface-card-2); }
+.if-interactive:active { transform: translateY(0) scale(0.99); }
+
+/* ---- Focus ---- */
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible {
+  outline: none;
+  border-color: var(--forest-500);
+  box-shadow: 0 0 0 4px rgba(59,170,116,0.14);
+}
+
+/* ---- Animations ---- */
+@keyframes if-ring-fill { from { stroke-dashoffset: var(--if-c); } }
+@keyframes if-bar-fill { from { width: 0; } }
+@keyframes if-spin { to { transform: rotate(360deg); } }
+@keyframes if-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes if-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.if-fade-up { animation: if-fade-up var(--dur-slow) var(--ease-out) both; }
+.if-fade-in { animation: if-fade-in var(--dur-base) var(--ease-out) both; }
+
+/* ---- Scrollbar ---- */
+* { scrollbar-width: thin; scrollbar-color: var(--ink-700) transparent; }
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
