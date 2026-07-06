@@ -103,6 +103,7 @@ export function mapOFFProduct(p: OFFProduct): FoodItem | null {
     micros: {
       saturatedFat: val("saturated-fat") || undefined,
       transFat: val("trans-fat") || undefined,
+      addedSugar: val("added-sugars") || undefined,
       cholesterol: val("cholesterol") ? Math.round(num(pickNutriment(n, "cholesterol").value) * 1000) : undefined,
       potassium: val("potassium") ? Math.round(num(pickNutriment(n, "potassium").value) * 1000) : undefined,
       calcium: val("calcium") ? Math.round(num(pickNutriment(n, "calcium").value) * 1000) : undefined,

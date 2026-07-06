@@ -126,6 +126,7 @@ export interface UserProfile {
   weighInSchedule: WeighInSchedule; // (#5)
   macroCycling: MacroCycling;
   hydrationReminders: boolean;
+  customMealTypes: CustomMealType[]; // (#21)
   createdAt: string;
   updatedAt: string;
 }
@@ -253,11 +254,25 @@ export type MealType =
   | "post_workout"
   | "custom";
 
+/**
+ * A meal-type key as stored on logs. Built-in keys are MealType values;
+ * user-created ones look like "custom:<id>". Kept as string so users can
+ * add their own meal types (#21).
+ */
+export type MealTypeKey = MealType | string;
+
+/** A user-defined meal type (name + icon), added in Profile. */
+export interface CustomMealType {
+  key: string; // "custom:<id>"
+  label: string;
+  icon: string; // Lucide icon name
+}
+
 export interface FoodLog {
   id: string;
   userId: string;
   logDate: string; // YYYY-MM-DD
-  mealType: MealType;
+  mealType: MealTypeKey;
   foodItemId: string | null;
   customName: string | null;
   quantity: number; // servings
@@ -314,7 +329,7 @@ export interface SavedMeal {
   id: string;
   userId: string;
   name: string;
-  mealType: MealType;
+  mealType: MealTypeKey;
   items: SavedMealItem[];
   calories: number;
   protein: number;
@@ -544,7 +559,7 @@ export interface DayStats {
   steps: number;
   caloriesBurned: number;
   mealsLogged: number;
-  loggedMealTypes: MealType[];
+  loggedMealTypes: MealTypeKey[];
   targetCalories: number;
   targetProtein: number;
   targetWaterOz: number;

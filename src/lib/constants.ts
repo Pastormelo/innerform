@@ -1,4 +1,4 @@
-import type { ExerciseType, MealType } from "@/types";
+import type { CustomMealType, ExerciseType, MealType, MealTypeKey } from "@/types";
 
 /* ============================================================
    Shared display constants — meal types (#21), exercise, and
@@ -21,12 +21,35 @@ export const MEAL_TYPES: { value: MealType; label: string; icon: string }[] = [
   { value: "custom", label: "Custom", icon: "Plus" },
 ];
 
-export function mealTypeLabel(t: MealType): string {
-  return MEAL_TYPES.find((m) => m.value === t)?.label ?? t.replace(/_/g, " ");
+export function mealTypeLabel(t: MealTypeKey, custom: CustomMealType[] = []): string {
+  return (
+    MEAL_TYPES.find((m) => m.value === t)?.label ??
+    custom.find((c) => c.key === t)?.label ??
+    String(t).replace(/_/g, " ")
+  );
 }
-export function mealTypeIcon(t: MealType): string {
-  return MEAL_TYPES.find((m) => m.value === t)?.icon ?? "UtensilsCrossed";
+export function mealTypeIcon(t: MealTypeKey, custom: CustomMealType[] = []): string {
+  return MEAL_TYPES.find((m) => m.value === t)?.icon ?? custom.find((c) => c.key === t)?.icon ?? "UtensilsCrossed";
 }
+
+/** Icon choices offered when creating a custom meal type. */
+export const MEAL_ICON_CHOICES = [
+  "EggFried",
+  "Croissant",
+  "Sandwich",
+  "UtensilsCrossed",
+  "Cookie",
+  "Popcorn",
+  "Apple",
+  "Coffee",
+  "CupSoda",
+  "Pizza",
+  "Salad",
+  "Soup",
+  "Moon",
+  "Zap",
+  "Dumbbell",
+];
 
 /** The core meal slots most days use, in order. */
 export const CORE_MEAL_ORDER: MealType[] = [

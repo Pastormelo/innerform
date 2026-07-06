@@ -27,6 +27,7 @@ import { DynIcon } from "@/components/ui/DynIcon";
 import { InlineSpinner } from "@/components/ui/GeneratingOverlay";
 import { BarcodeScanner } from "@/components/food-log/BarcodeScanner";
 import { FoodLabel, FoodIcon, gradeFor, GradeBadge } from "@/components/food-log/FoodLabel";
+import { ServingEditor } from "@/components/food-log/ServingEditor";
 import { useApp } from "@/lib/store/AppStoreProvider";
 import { getFoodById } from "@/data/foods";
 import { searchFoods, lookupBarcode } from "@/lib/food-db/client";
@@ -35,15 +36,16 @@ import { goalDirection } from "@/lib/nutrition/calculations";
 import { CORE_MEAL_ORDER, EXERCISE_TYPES, estimateCaloriesBurned, mealTypeIcon, mealTypeLabel, MEAL_TYPES } from "@/lib/constants";
 import { fileToResizedDataUrl } from "@/lib/image";
 import { addDays, formatShort, isToday, todayStr } from "@/lib/dates";
-import type { ExerciseType, FoodItem, GoalDirection, MealType } from "@/types";
+import type { CustomMealType, ExerciseType, FoodItem, GoalDirection, MealTypeKey } from "@/types";
 
 export default function LogPage() {
   const { data, logFood, removeFoodLog, addWater, logExercise, removeExercise, saveNote, noteFor, saveMeal } = useApp();
   const profile = data.profile!;
   const dir = goalDirection(profile.primaryGoal);
 
+  const custom = profile.customMealTypes ?? [];
   const [date, setDate] = useState(todayStr());
-  const [addOpen, setAddOpen] = useState<MealType | null>(null);
+  const [addOpen, setAddOpen] = useState<MealTypeKey | null>(null);
   const [exerciseOpen, setExerciseOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
 
@@ -59,7 +61,8 @@ export default function LogPage() {
   const burned = Math.round(dayExercise.reduce((s, e) => s + e.caloriesBurned, 0));
   const budget = (data.targets?.calories ?? 0) + (profile.exerciseAddsToBudget ? burned : 0);
 
-  const usedMealTypes = CORE_MEAL_ORDER.filter((mt) => dayLogs.some((l) => l.mealType === mt));
+  const allTypeKeys: MealTypeKey[] = [...CORE_MEAL_ORDER, ...custom.map((c) => c.key)];
+  const usedMealTypes = allTypeKeys.filter((mt) => dayLogs.some((l) => l.mealType === mt));
 
   function copyYesterday() {
     const yLogs = data.foodLogs.filter((l) => l.logDate === addDays(date, -1));
@@ -84,11 +87,11 @@ export default function LogPage() {
     }
   }
 
-  function saveMealFromSection(mt: MealType) {
+  function saveMealFromSection(mt: MealTypeKey) {
     const items = dayLogs.filter((l) => l.mealType === mt);
     if (!items.length) return;
     saveMeal({
-      name: `${mealTypeLabel(mt)} — ${formatShort(date)}`,
+      name: `${mealTypeLabel(mt, custom)} — ${formatShort(date)}`,
       mealType: mt,
       items: items.map((l) => ({
         foodItemId: l.foodItemId,
@@ -181,8 +184,8 @@ export default function LogPage() {
           <Card key={mt} padding={16}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <DynIcon name={mealTypeIcon(mt)} size={17} color="var(--text-secondary)" />
-                <CardTitle style={{ marginBottom: 0 }}>{mealTypeLabel(mt)}</CardTitle>
+                <DynIcon name={mealTypeIcon(mt, custom)} size={17} color="var(--text-secondary)" />
+                <CardTitle style={{ marginBottom: 0 }}>{mealTypeLabel(mt, custom)}</CardTitle>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span className="if-num" style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
@@ -191,7 +194,7 @@ export default function LogPage() {
                 <IconBtn onClick={() => saveMealFromSection(mt)} aria-label="Save as meal" title="Save as reusable meal">
                   <Bookmark size={15} />
                 </IconBtn>
-                <IconBtn onClick={() => setAddOpen(mt)} aria-label={`Add to ${mealTypeLabel(mt)}`}>
+                <IconBtn onClick={() => setAddOpen(mt)} aria-label={`Add to ${mealTypeLabel(mt, custom)}`}>
                   <Plus size={16} />
                 </IconBtn>
               </div>
@@ -286,7 +289,7 @@ export default function LogPage() {
         </div>
       </Card>
 
-      <AddFoodModal key={addOpen ?? "closed"} open={addOpen !== null} mealType={addOpen ?? "snack"} date={date} dir={dir} onClose={() => setAddOpen(null)} />
+      <AddFoodModal key={addOpen ?? "closed"} open={addOpen !== null} mealType={addOpen ?? "snack"} date={date} dir={dir} custom={custom} onClose={() => setAddOpen(null)} />
       <ExerciseModal key={exerciseOpen ? "ex-open" : "ex-closed"} open={exerciseOpen} date={date} weightLbs={profile.currentWeight ?? 170} onClose={() => setExerciseOpen(false)} onAdd={logExercise} />
       <NoteModal key={noteOpen ? `note-${note?.updatedAt ?? "open"}` : "note-closed"} open={noteOpen} initial={note?.body ?? ""} onClose={() => setNoteOpen(false)} onSave={(body) => saveNote(body, date)} />
     </div>
@@ -321,11 +324,11 @@ function IconBtn({ children, disabled, ...rest }: React.ButtonHTMLAttributes<HTM
 
 /* ============ Add food modal ============ */
 
-function AddFoodModal({ open, mealType: initialMealType, date, dir, onClose }: { open: boolean; mealType: MealType; date: string; dir: GoalDirection; onClose: () => void }) {
+function AddFoodModal({ open, mealType: initialMealType, date, dir, custom, onClose }: { open: boolean; mealType: MealTypeKey; date: string; dir: GoalDirection; custom: CustomMealType[]; onClose: () => void }) {
   const { data, logFood, logSavedMeal, toggleFavorite, isFavorite, saveRecipe, removeRecipe, logRecipe } = useApp();
   const [tab, setTab] = useState<"search" | "manual" | "saved" | "recipes">("search");
   const [builderOpen, setBuilderOpen] = useState(false);
-  const [mealType, setMealType] = useState<MealType>(initialMealType);
+  const [mealType, setMealType] = useState<MealTypeKey>(initialMealType);
   const [query, setQuery] = useState("");
   const [seedResults, setSeedResults] = useState<FoodItem[]>([]);
   const [remoteResults, setRemoteResults] = useState<FoodItem[]>([]);
@@ -444,7 +447,12 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, onClose }: {
     <>
       <Modal open={open} onClose={onClose} title="Log food">
         <div style={{ display: "grid", gap: 14 }}>
-          <Select label="Meal" value={mealType} onChange={(e) => setMealType(e.target.value as MealType)} options={MEAL_TYPES.map((m) => ({ value: m.value, label: m.label }))} />
+          <Select
+            label="Meal"
+            value={mealType}
+            onChange={(e) => setMealType(e.target.value)}
+            options={[...MEAL_TYPES.map((m) => ({ value: m.value, label: m.label })), ...custom.map((c) => ({ value: c.key, label: c.label }))]}
+          />
           <SegmentedControl
             options={[
               { value: "search", label: "Search" },
@@ -525,10 +533,10 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, onClose }: {
 
           {tab === "search" && selected && (
             <div style={{ display: "grid", gap: 14 }}>
-              <FoodLabel food={selected} quantity={qty} direction={dir} />
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <Stepper value={qty} onChange={setQty} min={0.25} max={20} step={0.25} format={(v) => `×${v}`} />
+              <div className="if-glass" style={{ padding: 16 }}>
+                <ServingEditor food={selected} onMultiplier={setQty} />
               </div>
+              <FoodLabel food={selected} quantity={qty} direction={dir} />
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <label style={photoBtn}>
                   <Camera size={15} /> {photo ? "Photo added" : "Add photo"}
@@ -546,7 +554,7 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, onClose }: {
                   Back
                 </Button>
                 <Button fullWidth onClick={saveSeed}>
-                  Add to {mealTypeLabel(mealType)}
+                  Add to {mealTypeLabel(mealType, custom)}
                 </Button>
               </div>
             </div>
@@ -566,7 +574,7 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, onClose }: {
                 <input type="file" accept="image/*" capture="environment" onChange={onPhoto} style={{ display: "none" }} />
               </label>
               <Button fullWidth onClick={saveManual} disabled={!mName.trim() || !Number(mCal)}>
-                Add to {mealTypeLabel(mealType)}
+                Add to {mealTypeLabel(mealType, custom)}
               </Button>
             </div>
           )}

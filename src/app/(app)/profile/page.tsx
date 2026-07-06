@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, Camera, Heart, LayoutGrid, LogOut, ShieldAlert, Smartphone, Watch, Scale as ScaleIcon, User } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Camera, ChevronRight, Heart, LayoutGrid, LogOut, ShieldAlert, Smartphone, Utensils, Watch, Scale as ScaleIcon, Trash2, User } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Chip, Pill } from "@/components/ui/Chip";
@@ -11,10 +11,11 @@ import { Modal } from "@/components/ui/Modal";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
 import { NavHeader } from "@/components/ui/NavHeader";
+import { DynIcon } from "@/components/ui/DynIcon";
 import { useApp } from "@/lib/store/AppStoreProvider";
 import { applyTheme, THEME_LABELS } from "@/lib/theme";
 import { formatHeight, formatWeight } from "@/lib/nutrition/calculations";
-import { DAY_NAMES } from "@/lib/constants";
+import { DAY_NAMES, MEAL_ICON_CHOICES, MEAL_TYPES } from "@/lib/constants";
 import { DEFAULT_WIDGETS } from "@/types";
 import type { ActivityLevel, CoachStyle, DashboardWidget, DesiredPace, GoalType, HealthProvider, Theme, Units } from "@/types";
 
@@ -58,10 +59,13 @@ const INTEGRATIONS: { provider: HealthProvider; label: string; Icon: React.Eleme
 ];
 
 export default function ProfilePage() {
-  const { data, saveProfile, signOut, user, supabaseMode, setTheme, setDashboardWidgets } = useApp();
+  const { data, saveProfile, signOut, user, supabaseMode, setTheme, setDashboardWidgets, addCustomMealType, removeCustomMealType, reorderCustomMealType } = useApp();
   const router = useRouter();
   const profile = data.profile!;
   const [confirmNE, setConfirmNE] = useState<0 | 1 | 2>(0);
+  const [mealTypesOpen, setMealTypesOpen] = useState(false);
+  const [newMealName, setNewMealName] = useState("");
+  const [newMealIcon, setNewMealIcon] = useState(MEAL_ICON_CHOICES[0]);
 
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -296,6 +300,22 @@ export default function ProfilePage() {
         </div>
       </Card>
 
+      {/* Meal types (#21) */}
+      <Card padding={16} className="if-hover" onClick={() => setMealTypesOpen(true)} style={{ cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Utensils size={17} color="var(--text-secondary)" />
+          <div style={{ flex: 1 }}>
+            <CardTitle style={{ marginBottom: 2 }}>Meal types</CardTitle>
+            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+              {(profile.customMealTypes?.length ?? 0) > 0
+                ? `${profile.customMealTypes.length} custom + built-in types`
+                : "Add and arrange your own meal types"}
+            </div>
+          </div>
+          <ChevronRight size={18} color="var(--text-muted)" />
+        </div>
+      </Card>
+
       {/* Body stats */}
       <Card padding={16}>
         <CardTitle>Body</CardTitle>
@@ -457,6 +477,81 @@ export default function ProfilePage() {
         medication. AI coaching can make mistakes — review recommendations carefully and use your judgment.
       </p>
 
+      {/* Meal types manager */}
+      <Modal open={mealTypesOpen} onClose={() => setMealTypesOpen(false)} title="Meal types">
+        <div style={{ display: "grid", gap: 16 }}>
+          <div>
+            <div className="if-overline" style={{ color: "var(--text-muted)", marginBottom: 8 }}>Built-in</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {MEAL_TYPES.filter((m) => m.value !== "custom").map((m) => (
+                <span key={m.value} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: "var(--radius-pill)", background: "var(--surface-card)", border: "1px solid var(--border-subtle)", fontSize: 13 }}>
+                  <DynIcon name={m.icon} size={14} color="var(--text-secondary)" /> {m.label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="if-overline" style={{ color: "var(--text-muted)", marginBottom: 8 }}>Your custom types</div>
+            {(profile.customMealTypes?.length ?? 0) === 0 ? (
+              <p style={{ fontSize: 13.5, color: "var(--text-muted)", margin: 0 }}>None yet. Add one below.</p>
+            ) : (
+              <div style={{ display: "grid", gap: 6 }}>
+                {profile.customMealTypes.map((c, i) => (
+                  <div key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)", background: "var(--surface-card)" }}>
+                    <DynIcon name={c.icon} size={17} color="var(--text-secondary)" />
+                    <span style={{ flex: 1, fontSize: 14 }}>{c.label}</span>
+                    <IconBtnSm onClick={() => reorderCustomMealType(c.key, -1)} disabled={i === 0} aria-label="Move up"><ArrowUp size={14} /></IconBtnSm>
+                    <IconBtnSm onClick={() => reorderCustomMealType(c.key, 1)} disabled={i === profile.customMealTypes.length - 1} aria-label="Move down"><ArrowDown size={14} /></IconBtnSm>
+                    <IconBtnSm onClick={() => removeCustomMealType(c.key)} aria-label="Delete"><Trash2 size={14} /></IconBtnSm>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 14 }}>
+            <div className="if-overline" style={{ color: "var(--forest-400)", marginBottom: 8 }}>Add a meal type</div>
+            <Input value={newMealName} onChange={(e) => setNewMealName(e.target.value)} placeholder="e.g. Second dinner, Shake, Fasting window" />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0" }}>
+              {MEAL_ICON_CHOICES.map((ic) => (
+                <button
+                  key={ic}
+                  type="button"
+                  onClick={() => setNewMealIcon(ic)}
+                  aria-label={ic}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "var(--radius-sm)",
+                    border: `1.5px solid ${newMealIcon === ic ? "var(--forest-500)" : "var(--border-subtle)"}`,
+                    background: newMealIcon === ic ? "color-mix(in srgb, var(--forest-500) 16%, transparent)" : "var(--surface-card)",
+                    color: "var(--text-secondary)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <DynIcon name={ic} size={18} />
+                </button>
+              ))}
+            </div>
+            <Button
+              fullWidth
+              disabled={!newMealName.trim()}
+              onClick={() => {
+                addCustomMealType(newMealName, newMealIcon);
+                setNewMealName("");
+                setNewMealIcon(MEAL_ICON_CHOICES[0]);
+              }}
+            >
+              Add meal type
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* No Excuses confirmations */}
       <Modal open={confirmNE === 1} onClose={() => setConfirmNE(0)} title="Are you sure?">
         <div style={{ display: "grid", gap: 16 }}>
@@ -496,5 +591,31 @@ export default function ProfilePage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+function IconBtnSm({ children, disabled, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      style={{
+        width: 30,
+        height: 30,
+        borderRadius: "var(--radius-sm)",
+        border: "1px solid var(--border-subtle)",
+        background: "var(--surface-card)",
+        color: disabled ? "var(--text-muted)" : "var(--text-secondary)",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        WebkitTapHighlightColor: "transparent",
+      }}
+      {...rest}
+    >
+      {children}
+    </button>
   );
 }

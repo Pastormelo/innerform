@@ -159,10 +159,13 @@ interface AppStore {
   refreshReminders(): void;
   saveRecipe(recipe: Omit<Recipe, "id" | "userId">): void;
   removeRecipe(id: string): void;
-  logRecipe(recipe: Recipe, servings: number, date: string, mealType: import("@/types").MealType): void;
+  logRecipe(recipe: Recipe, servings: number, date: string, mealType: import("@/types").MealTypeKey): void;
   addProgressPhoto(imageUrl: string, weight: number | null, note: string | null, date?: string): void;
   removeProgressPhoto(id: string): void;
   applyStreakFreeze(type: StreakType): void;
+  addCustomMealType(label: string, icon: string): void;
+  removeCustomMealType(key: string): void;
+  reorderCustomMealType(key: string, dir: -1 | 1): void;
 }
 
 /** logFood accepts an entry without server-managed fields; loggedAt/imageUrl are optional. */
@@ -239,6 +242,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
             photoUrl: p.photoUrl ?? null,
             macroCycling: p.macroCycling ?? { enabled: false, trainingDays: [1, 3, 5], trainingCalorieDelta: 250, restCalorieDelta: -150 },
             hydrationReminders: p.hydrationReminders ?? true,
+            customMealTypes: p.customMealTypes ?? [],
           };
           if (parsed.streakFreezes == null) parsed.streakFreezes = 2;
           applyTheme(parsed.profile.theme);
@@ -403,6 +407,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
               weighInSchedule: { enabled: false, days: [1], time: "07:00" },
               macroCycling: { enabled: false, trainingDays: [1, 3, 5], trainingCalorieDelta: 250, restCalorieDelta: -150 },
               hydrationReminders: true,
+              customMealTypes: [],
               createdAt: now,
               updatedAt: now,
               ...p,
@@ -674,7 +679,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logRecipe = useCallback(
-    (recipe: Recipe, servings: number, date: string, mealType: import("@/types").MealType) => {
+    (recipe: Recipe, servings: number, date: string, mealType: import("@/types").MealTypeKey) => {
       logFood({
         logDate: date,
         mealType,
@@ -723,6 +728,41 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           streakFreezes: d.streakFreezes - 1,
           streaks: d.streaks.map((s) => (s.streakType === type ? { ...s, lastUpdatedDate: daysAgo(1) } : s)),
         };
+      }),
+    [update],
+  );
+
+  /* ---- custom meal types (#21) ---- */
+
+  const addCustomMealType = useCallback(
+    (label: string, icon: string) =>
+      update((d) => {
+        if (!d.profile) return d;
+        const key = `custom:${uid()}`;
+        const next = [...d.profile.customMealTypes, { key, label: label.trim(), icon }];
+        return { ...d, profile: { ...d.profile, customMealTypes: next, updatedAt: new Date().toISOString() } };
+      }),
+    [update],
+  );
+
+  const removeCustomMealType = useCallback(
+    (key: string) =>
+      update((d) =>
+        d.profile ? { ...d, profile: { ...d.profile, customMealTypes: d.profile.customMealTypes.filter((c) => c.key !== key) } } : d,
+      ),
+    [update],
+  );
+
+  const reorderCustomMealType = useCallback(
+    (key: string, dir: -1 | 1) =>
+      update((d) => {
+        if (!d.profile) return d;
+        const arr = [...d.profile.customMealTypes];
+        const i = arr.findIndex((c) => c.key === key);
+        const j = i + dir;
+        if (i < 0 || j < 0 || j >= arr.length) return d;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        return { ...d, profile: { ...d.profile, customMealTypes: arr } };
       }),
     [update],
   );
@@ -797,8 +837,11 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       addProgressPhoto,
       removeProgressPhoto,
       applyStreakFreeze,
+      addCustomMealType,
+      removeCustomMealType,
+      reorderCustomMealType,
     }),
-    [loading, user, data, supabaseMode, signUp, signIn, signOut, update, saveProfile, logFood, removeFoodLog, addWater, addWeighIn, todayStats, recentDays, weightTrend, streakFor, awardBadge, logExercise, removeExercise, setSteps, saveNote, noteFor, saveMeal, removeSavedMeal, logSavedMeal, toggleFavorite, isFavorite, setTheme, setDashboardWidgets, markReminderRead, refreshReminders, saveRecipe, removeRecipe, logRecipe, addProgressPhoto, removeProgressPhoto, applyStreakFreeze],
+    [loading, user, data, supabaseMode, signUp, signIn, signOut, update, saveProfile, logFood, removeFoodLog, addWater, addWeighIn, todayStats, recentDays, weightTrend, streakFor, awardBadge, logExercise, removeExercise, setSteps, saveNote, noteFor, saveMeal, removeSavedMeal, logSavedMeal, toggleFavorite, isFavorite, setTheme, setDashboardWidgets, markReminderRead, refreshReminders, saveRecipe, removeRecipe, logRecipe, addProgressPhoto, removeProgressPhoto, applyStreakFreeze, addCustomMealType, removeCustomMealType, reorderCustomMealType],
   );
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;

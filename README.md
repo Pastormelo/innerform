@@ -87,6 +87,9 @@ Everything else on the roadmap runs today in the web app.
 
 ## Product notes
 
+- **Editable serving size.** When logging a food you can type a serving count *or* a weight (g/oz/lb) with unit chips; calories and macros update live (MyNetDiary-style).
+- **Food label.** Tap any food for a full nutrition-facts panel: goal-aware letter grade ("cutting C" / "gaining B"), a toggleable % Daily Value column, Net Carbs, Added Sugars, Cholesterol, Calcium, Iron, and ingredients.
+- **Custom meal types.** Beyond the 12 built-ins, users add their own meal types (name + icon) and reorder them in Profile → Meal types; they appear across logging.
 - **Recipes.** Build a recipe from ingredients once (auto per-serving macros) and log a serving anytime, in the Log → Recipes tab.
 - **Macro cycling.** Optional training-day vs rest-day calorie targets (Profile → Macro cycling); the Today target shifts automatically by weekday.
 - **Streak freezes.** A small pool of freezes protects a streak through one missed day (Progress → Streak freezes) so one off-day doesn't erase weeks.

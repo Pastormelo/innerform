@@ -50,6 +50,7 @@ create table if not exists user_profiles (
   macro_cycling jsonb not null default '{"enabled":false,"trainingDays":[1,3,5],"trainingCalorieDelta":250,"restCalorieDelta":-150}',
   hydration_reminders boolean not null default true,
   streak_freezes int not null default 2,
+  custom_meal_types jsonb not null default '[]',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
