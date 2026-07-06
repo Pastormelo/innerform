@@ -2,17 +2,38 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, Heart, LogOut, ShieldAlert, Smartphone, Watch, Scale as ScaleIcon } from "lucide-react";
+import { Activity, Camera, Heart, LayoutGrid, LogOut, ShieldAlert, Smartphone, Watch, Scale as ScaleIcon, User } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Pill } from "@/components/ui/Chip";
+import { Chip, Pill } from "@/components/ui/Chip";
 import { Input, Select, Field } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { Switch } from "@/components/ui/Switch";
 import { NavHeader } from "@/components/ui/NavHeader";
 import { useApp } from "@/lib/store/AppStoreProvider";
+import { applyTheme, THEME_LABELS } from "@/lib/theme";
 import { formatHeight, formatWeight } from "@/lib/nutrition/calculations";
-import type { ActivityLevel, CoachStyle, DesiredPace, GoalType, HealthProvider } from "@/types";
+import { DAY_NAMES } from "@/lib/constants";
+import { DEFAULT_WIDGETS } from "@/types";
+import type { ActivityLevel, CoachStyle, DashboardWidget, DesiredPace, GoalType, HealthProvider, Theme, Units } from "@/types";
+
+const WIDGET_LABELS: Record<DashboardWidget, string> = {
+  rings: "Calorie & macro rings",
+  macros: "Macro bars",
+  coach: "Coach message",
+  water: "Water",
+  weight: "Weight",
+  steps: "Steps",
+  calories_burned: "Calories burned",
+  plan: "Today's plan",
+  body_learning: "Body learning insight",
+  fiber: "Fiber",
+  sugar: "Sugar",
+  sodium: "Sodium",
+  net_calories: "Net calories",
+};
+const ALL_WIDGETS = Object.keys(WIDGET_LABELS) as DashboardWidget[];
 
 const GOAL_OPTIONS: { value: GoalType; label: string }[] = [
   { value: "lose_weight", label: "Lose weight" },
@@ -37,10 +58,29 @@ const INTEGRATIONS: { provider: HealthProvider; label: string; Icon: React.Eleme
 ];
 
 export default function ProfilePage() {
-  const { data, saveProfile, signOut, user, supabaseMode } = useApp();
+  const { data, saveProfile, signOut, user, supabaseMode, setTheme, setDashboardWidgets } = useApp();
   const router = useRouter();
   const profile = data.profile!;
   const [confirmNE, setConfirmNE] = useState<0 | 1 | 2>(0);
+
+  async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const { fileToResizedDataUrl } = await import("@/lib/image");
+    const url = await fileToResizedDataUrl(file, 240);
+    saveProfile({ photoUrl: url });
+  }
+
+  function toggleWidget(w: DashboardWidget) {
+    const current = profile.dashboardWidgets ?? DEFAULT_WIDGETS;
+    setDashboardWidgets(current.includes(w) ? current.filter((x) => x !== w) : [...current, w]);
+  }
+
+  function toggleWeighDay(day: number) {
+    const s = profile.weighInSchedule;
+    const days = s.days.includes(day) ? s.days.filter((d) => d !== day) : [...s.days, day].sort();
+    saveProfile({ weighInSchedule: { ...s, days } });
+  }
 
   function setCoach(style: CoachStyle) {
     if (style === "no_excuses" && profile.coachStyle !== "no_excuses") {
@@ -53,6 +93,157 @@ export default function ProfilePage() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <NavHeader overline="Profile" title={profile.name || "You"} />
+
+      {/* Identity: photo + name + edit (#8) */}
+      <Card padding={16}>
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <label style={{ cursor: "pointer", position: "relative" }}>
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                overflow: "hidden",
+                background: "var(--surface-inset)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              {profile.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <User size={30} color="var(--text-muted)" />
+              )}
+            </div>
+            <span
+              style={{
+                position: "absolute",
+                right: -2,
+                bottom: -2,
+                width: 26,
+                height: 26,
+                borderRadius: "50%",
+                background: "var(--forest-500)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--ink-950)",
+              }}
+            >
+              <Camera size={14} />
+            </span>
+            <input type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
+          </label>
+          <div style={{ flex: 1, display: "grid", gap: 8 }}>
+            <Input
+              defaultValue={profile.name}
+              onBlur={(e) => e.target.value.trim() && saveProfile({ name: e.target.value.trim() })}
+              placeholder="Your name"
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <Input type="number" defaultValue={profile.age ?? ""} onBlur={(e) => Number(e.target.value) && saveProfile({ age: Number(e.target.value) })} placeholder="Age" />
+              <Select
+                value={profile.sex ?? "male"}
+                onChange={(e) => saveProfile({ sex: e.target.value as "male" | "female" })}
+                options={[
+                  { value: "male", label: "Male" },
+                  { value: "female", label: "Female" },
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Appearance + preferences (#18 #19 #20 #12) */}
+      <Card padding={16}>
+        <CardTitle>Appearance & preferences</CardTitle>
+        <Field label="Theme">
+          <SegmentedControl
+            options={(["basic", "light", "dark"] as Theme[]).map((t) => ({ value: t, label: THEME_LABELS[t] }))}
+            value={profile.theme}
+            onChange={(t) => {
+              applyTheme(t);
+              setTheme(t);
+            }}
+          />
+        </Field>
+        <div style={{ height: 12 }} />
+        <Field label="Units">
+          <SegmentedControl
+            options={[
+              { value: "imperial", label: "lb / ft" },
+              { value: "metric", label: "kg / cm" },
+            ]}
+            value={profile.measurementUnits}
+            onChange={(u) => saveProfile({ measurementUnits: u as Units })}
+          />
+        </Field>
+        <div style={{ height: 16 }} />
+        <Input
+          label="Daily step goal"
+          type="number"
+          defaultValue={profile.stepsGoal}
+          onBlur={(e) => Number(e.target.value) && saveProfile({ stepsGoal: Number(e.target.value) })}
+        />
+        <div style={{ height: 16 }} />
+        <div style={{ display: "grid", gap: 14 }}>
+          <Switch
+            label="Exercise adds to my calorie budget"
+            checked={profile.exerciseAddsToBudget}
+            onChange={(v) => saveProfile({ exerciseAddsToBudget: v })}
+          />
+          <Switch
+            label="Timestamp food & exercise automatically"
+            checked={profile.timestampsEnabled}
+            onChange={(v) => saveProfile({ timestampsEnabled: v })}
+          />
+        </div>
+      </Card>
+
+      {/* Scheduled weigh-ins (#5) */}
+      <Card padding={16}>
+        <CardTitle>Scheduled weigh-ins</CardTitle>
+        <Switch label="Remind me to weigh in" checked={profile.weighInSchedule.enabled} onChange={(v) => saveProfile({ weighInSchedule: { ...profile.weighInSchedule, enabled: v } })} />
+        {profile.weighInSchedule.enabled && (
+          <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>Which days?</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {DAY_NAMES.map((d, i) => (
+                  <Chip key={d} label={d} size="sm" selected={profile.weighInSchedule.days.includes(i)} onClick={() => toggleWeighDay(i)} />
+                ))}
+              </div>
+            </div>
+            <Input
+              label="Time"
+              type="time"
+              value={profile.weighInSchedule.time}
+              onChange={(e) => saveProfile({ weighInSchedule: { ...profile.weighInSchedule, time: e.target.value } })}
+            />
+            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+              You&apos;ll get an in-app nudge on scheduled days. Real push notifications arrive with the native mobile app.
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {/* Dashboard customization (#17) */}
+      <Card padding={16}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <LayoutGrid size={16} color="var(--text-secondary)" />
+          <CardTitle style={{ marginBottom: 0 }}>Today dashboard</CardTitle>
+        </div>
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-muted)" }}>Pick what shows on your Today screen.</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {ALL_WIDGETS.map((w) => (
+            <Chip key={w} label={WIDGET_LABELS[w]} size="sm" selected={(profile.dashboardWidgets ?? DEFAULT_WIDGETS).includes(w)} onClick={() => toggleWidget(w)} />
+          ))}
+        </div>
+      </Card>
 
       {/* Body stats */}
       <Card padding={16}>

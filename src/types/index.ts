@@ -30,6 +30,43 @@ export type GoalDirection = "loss" | "gain" | "maintain";
 export type CoachStyle = "encouraging" | "balanced" | "no_excuses";
 export type CoachMode = "celebrate" | "encourage" | "nudge" | "challenge" | "reset";
 
+export type Theme = "basic" | "light" | "dark";
+
+/** Which cards/metrics the user pins to the Today dashboard (#17). */
+export type DashboardWidget =
+  | "rings"
+  | "macros"
+  | "coach"
+  | "water"
+  | "weight"
+  | "steps"
+  | "calories_burned"
+  | "plan"
+  | "body_learning"
+  | "fiber"
+  | "sugar"
+  | "sodium"
+  | "net_calories";
+
+export const DEFAULT_WIDGETS: DashboardWidget[] = [
+  "rings",
+  "macros",
+  "coach",
+  "steps",
+  "calories_burned",
+  "water",
+  "weight",
+  "plan",
+  "body_learning",
+];
+
+/** Days of week for scheduled weigh-ins (#5). 0 = Sunday. */
+export interface WeighInSchedule {
+  enabled: boolean;
+  days: number[];
+  time: string; // HH:MM
+}
+
 export interface UserProfile {
   id: string;
   authUserId: string;
@@ -61,6 +98,14 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   motivationProfileCompleted: boolean;
   hardGainerProfileCompleted: boolean;
+  // Added features
+  photoUrl: string | null; // data URL (#8)
+  theme: Theme; // (#18)
+  dashboardWidgets: DashboardWidget[]; // (#17)
+  stepsGoal: number; // (#12)
+  exerciseAddsToBudget: boolean; // (#20)
+  timestampsEnabled: boolean; // (#19)
+  weighInSchedule: WeighInSchedule; // (#5)
   createdAt: string;
   updatedAt: string;
 }
@@ -132,6 +177,21 @@ export type GainCategory =
   | "produce"
   | "lean_volume";
 
+/** Nutri-Score style letter grade (from Open Food Facts or estimated). */
+export type FoodGrade = "A" | "B" | "C" | "D" | "E" | null;
+
+/** Extended micronutrients for the full food label (#15). Per serving. */
+export interface FoodMicros {
+  saturatedFat?: number;
+  transFat?: number;
+  cholesterol?: number;
+  potassium?: number;
+  calcium?: number;
+  iron?: number;
+  vitaminD?: number;
+  addedSugar?: number;
+}
+
 export interface FoodItem {
   id: string;
   name: string;
@@ -152,13 +212,23 @@ export interface FoodItem {
   source: FoodSource;
   barcode: string | null;
   createdByUserId: string | null;
+  // Added (#1 #15)
+  imageUrl?: string | null;
+  grade?: FoodGrade;
+  ingredients?: string | null;
+  micros?: FoodMicros;
 }
 
 export type MealType =
   | "breakfast"
+  | "brunch"
   | "lunch"
   | "dinner"
+  | "morning_snack"
+  | "afternoon_snack"
+  | "evening_snack"
   | "snack"
+  | "late_night"
   | "pre_workout"
   | "post_workout"
   | "custom";
@@ -181,7 +251,80 @@ export interface FoodLog {
   foodQualityScore: number | null;
   foodQualityLabel: string | null;
   notes: string | null;
+  loggedAt: string | null; // ISO timestamp when logged (#19)
+  imageUrl: string | null; // user- or OFF-provided photo (#1)
   createdAt: string;
+}
+
+/* ---- Exercise, steps, notes, saved meals, reminders (added features) ---- */
+
+export type ExerciseType = "cardio" | "strength" | "walk" | "run" | "cycle" | "swim" | "sport" | "other";
+
+export interface ExerciseLog {
+  id: string;
+  userId: string;
+  logDate: string;
+  type: ExerciseType;
+  name: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  loggedAt: string | null;
+  createdAt: string;
+}
+
+export interface StepLog {
+  id: string;
+  userId: string;
+  logDate: string;
+  steps: number;
+  source: "manual" | "apple_health";
+  createdAt: string;
+}
+
+export interface DailyNote {
+  id: string;
+  userId: string;
+  logDate: string;
+  body: string;
+  updatedAt: string;
+}
+
+/** A reusable, user-composed meal (#16) — a named bundle of food entries. */
+export interface SavedMeal {
+  id: string;
+  userId: string;
+  name: string;
+  mealType: MealType;
+  items: SavedMealItem[];
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  createdAt: string;
+}
+
+export interface SavedMealItem {
+  foodItemId: string | null;
+  customName: string | null;
+  quantity: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sugar: number;
+  sodium: number | null;
+}
+
+/** In-app encouragement / nudge shown in a feed and on app open (#6). */
+export interface Reminder {
+  id: string;
+  userId: string;
+  createdAt: string;
+  kind: "encouragement" | "log_nudge" | "water_nudge" | "weigh_in" | "activity_nudge" | "behind_nudge";
+  message: string;
+  read: boolean;
+  actionHref: string | null;
 }
 
 export interface DailyTargets {
@@ -374,12 +517,19 @@ export interface DayStats {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
+  sugar: number;
+  sodium: number;
   waterOz: number;
+  steps: number;
+  caloriesBurned: number;
   mealsLogged: number;
   loggedMealTypes: MealType[];
   targetCalories: number;
   targetProtein: number;
   targetWaterOz: number;
+  /** target adjusted for exercise when exerciseAddsToBudget is on */
+  effectiveTargetCalories: number;
 }
 
 export interface CoachContext {

@@ -9,6 +9,7 @@ import { Chip } from "@/components/ui/Chip";
 import { Input, Select, Textarea, Field } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Modal } from "@/components/ui/Modal";
+import { GeneratingOverlay } from "@/components/ui/GeneratingOverlay";
 import { useApp, uid } from "@/lib/store/AppStoreProvider";
 import { computeTargets } from "@/lib/nutrition/calculations";
 import type {
@@ -104,6 +105,7 @@ export default function OnboardingPage() {
   const { loading, user, data, saveProfile, update } = useApp();
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [generating, setGenerating] = useState(false);
 
   // Step 1 — basic profile
   const [name, setName] = useState("");
@@ -131,6 +133,7 @@ export default function OnboardingPage() {
   const [secondaryGoals, setSecondaryGoals] = useState<GoalType[]>([]);
   const [pace, setPace] = useState<DesiredPace>("moderate");
   const [goalContext, setGoalContext] = useState("");
+  const [goalDate, setGoalDate] = useState("");
   const [triedBefore, setTriedBefore] = useState("");
   const [getsInWay, setGetsInWay] = useState("");
 
@@ -266,6 +269,7 @@ export default function OnboardingPage() {
       primaryGoal: primaryGoal!,
       secondaryGoals,
       desiredPace: pace,
+      goalDate: goalDate || null,
       goalContext: goalContext || null,
       triedBefore: triedBefore || null,
       coachStyle,
@@ -285,7 +289,9 @@ export default function OnboardingPage() {
       hardGainerProfileCompleted: Boolean(hardGainer),
     });
     update((d) => ({ ...d, motivation, hardGainer }));
-    router.replace("/dashboard");
+    // Branded generating sequence (#4) before landing on the dashboard.
+    setGenerating(true);
+    setTimeout(() => router.replace("/dashboard"), 8200);
   }
 
   const targetsPreview = step >= 1 && step1Valid && primaryGoal
@@ -304,6 +310,18 @@ export default function OnboardingPage() {
 
   return (
     <main style={{ minHeight: "100dvh", background: "var(--grad-hero)" }}>
+      <GeneratingOverlay
+        key={generating ? "gen-on" : "gen-off"}
+        open={generating}
+        steps={[
+          "Reading your profile…",
+          "Calculating your metabolism…",
+          "Setting your calorie & macro targets…",
+          `Tuning for your goal: ${primaryGoal?.replace(/_/g, " ") ?? "your goal"}…`,
+          "Priming your coach with your why…",
+          "Building your plan…",
+        ]}
+      />
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "24px 20px 64px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <Wordmark size={16} />
@@ -339,7 +357,8 @@ export default function OnboardingPage() {
               Let&apos;s learn your body.
             </h1>
             <p style={{ color: "var(--text-secondary)", margin: "0 0 4px" }}>
-              Everything starts with accurate inputs. This takes two minutes.
+              Just the basics to start — this takes about a minute. Everything after this is optional, and you can skip
+              straight into the app whenever you want.
             </p>
             <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="What should the coach call you?" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -508,13 +527,16 @@ export default function OnboardingPage() {
                 </div>
               </div>
             )}
-            <Input
-              label="Is there a date, event, or season connected to this goal?"
-              optional
-              value={goalContext}
-              onChange={(e) => setGoalContext(e.target.value)}
-              placeholder="Wedding in June, summer, a physical…"
-            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Input label="Target date" optional type="date" value={goalDate} onChange={(e) => setGoalDate(e.target.value)} />
+              <Input
+                label="Event or season"
+                optional
+                value={goalContext}
+                onChange={(e) => setGoalContext(e.target.value)}
+                placeholder="Wedding, summer…"
+              />
+            </div>
             <Textarea label="Have you tried this before? How did it go?" optional value={triedBefore} onChange={(e) => setTriedBefore(e.target.value)} />
             <Textarea label="What usually gets in the way?" optional value={getsInWay} onChange={(e) => setGetsInWay(e.target.value)} />
           </section>
@@ -704,6 +726,32 @@ export default function OnboardingPage() {
             </Button>
           )}
         </div>
+
+        {/* Skip the rest — core setup (steps 1–2) is all that's required (#3) */}
+        {step >= 1 && step < totalSteps - 1 && step1Valid && step2Valid && (
+          <button
+            type="button"
+            onClick={finish}
+            style={{
+              display: "block",
+              margin: "16px auto 0",
+              background: "none",
+              border: "none",
+              color: "var(--text-muted)",
+              fontSize: 13.5,
+              fontWeight: 600,
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            Skip the rest — take me in now
+          </button>
+        )}
+        {step >= 2 && (
+          <p style={{ textAlign: "center", fontSize: 12, color: "var(--text-muted)", marginTop: 10 }}>
+            These reflection questions are optional. You can complete or edit them anytime from your profile.
+          </p>
+        )}
       </div>
 
       {/* No Excuses double confirmation */}

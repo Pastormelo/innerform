@@ -30,14 +30,20 @@ export default function Charts({
   weighData,
   days,
   targets,
+  stepsGoal,
 }: {
   weighData: { date: string; weight: number }[];
   days: DayStats[];
   targets: DailyTargets | null;
+  stepsGoal?: number;
 }) {
   const calData = days.map((d) => ({ date: formatShort(d.date), calories: d.calories, target: d.targetCalories }));
   const proteinData = days.map((d) => ({ date: formatShort(d.date), protein: d.protein, target: d.targetProtein }));
   const waterData = days.map((d) => ({ date: formatShort(d.date), water: d.waterOz, target: d.targetWaterOz }));
+  const stepsData = days.map((d) => ({ date: formatShort(d.date), steps: d.steps }));
+  const burnData = days.map((d) => ({ date: formatShort(d.date), burned: d.caloriesBurned }));
+  const hasSteps = days.some((d) => d.steps > 0);
+  const hasBurn = days.some((d) => d.caloriesBurned > 0);
 
   return (
     <>
@@ -107,6 +113,37 @@ export default function Charts({
           </BarChart>
         </ResponsiveContainer>
       </Card>
+
+      {hasSteps && (
+        <Card padding={16}>
+          <CardTitle>Steps</CardTitle>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={stepsData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <XAxis dataKey="date" {...axis} tickLine={false} axisLine={false} interval={2} />
+              <YAxis {...axis} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+              {stepsGoal && <ReferenceLine y={stepsGoal} stroke="#4FB6E8" strokeDasharray="4 4" />}
+              <Bar dataKey="steps" fill="#4FB6E8" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+
+      {hasBurn && (
+        <Card padding={16}>
+          <CardTitle>Calories burned</CardTitle>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={burnData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <XAxis dataKey="date" {...axis} tickLine={false} axisLine={false} interval={2} />
+              <YAxis {...axis} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+              <Bar dataKey="burned" fill="#E67E22" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
     </>
   );
 }

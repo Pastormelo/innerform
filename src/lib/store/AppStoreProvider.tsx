@@ -5,8 +5,11 @@ import type {
   Badge,
   Challenge,
   CoachMessage,
+  DailyNote,
   DailyTargets,
+  DashboardWidget,
   DayStats,
+  ExerciseLog,
   FoodLog,
   GroceryItem,
   GroceryList,
@@ -16,15 +19,21 @@ import type {
   MotivationProfile,
   PlannedMeal,
   Recommendation,
+  Reminder,
+  SavedMeal,
+  StepLog,
   Streak,
   StreakType,
+  Theme,
   UserProfile,
   WaterLog,
   WeighIn,
   WeightTrend,
 } from "@/types";
+import { DEFAULT_WIDGETS } from "@/types";
 import { computeTargets } from "@/lib/nutrition/calculations";
 import { addDays, daysAgo, todayStr } from "@/lib/dates";
+import { applyTheme } from "@/lib/theme";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 /* ============================================================
@@ -63,6 +72,13 @@ export interface AppData {
   healthIntegrations: HealthIntegration[];
   recommendations: Recommendation[];
   frequentMealIds: string[];
+  // Added features
+  exerciseLogs: ExerciseLog[];
+  stepLogs: StepLog[];
+  dailyNotes: DailyNote[];
+  savedMeals: SavedMeal[];
+  reminders: Reminder[];
+  favoriteFoodIds: string[];
 }
 
 const EMPTY_DATA: AppData = {
@@ -84,6 +100,12 @@ const EMPTY_DATA: AppData = {
   healthIntegrations: [],
   recommendations: [],
   frequentMealIds: [],
+  exerciseLogs: [],
+  stepLogs: [],
+  dailyNotes: [],
+  savedMeals: [],
+  reminders: [],
+  favoriteFoodIds: [],
 };
 
 export const uid = () =>
@@ -103,7 +125,7 @@ interface AppStore {
   signOut(): Promise<void>;
   update(mutator: (d: AppData) => AppData): void;
   saveProfile(p: Partial<UserProfile>): void;
-  logFood(entry: Omit<FoodLog, "id" | "userId" | "createdAt">): void;
+  logFood(entry: FoodLogInput): void;
   removeFoodLog(id: string): void;
   addWater(amountOz: number, date?: string): void;
   addWeighIn(weight: number, notes?: string, date?: string): void;
@@ -112,7 +134,28 @@ interface AppStore {
   weightTrend(): WeightTrend;
   streakFor(type: StreakType): Streak | undefined;
   awardBadge(key: string, title: string, description: string): void;
+  // Added features
+  logExercise(entry: Omit<ExerciseLog, "id" | "userId" | "createdAt" | "loggedAt">): void;
+  removeExercise(id: string): void;
+  setSteps(steps: number, date?: string): void;
+  saveNote(body: string, date?: string): void;
+  noteFor(date?: string): DailyNote | undefined;
+  saveMeal(meal: Omit<SavedMeal, "id" | "userId" | "createdAt">): void;
+  removeSavedMeal(id: string): void;
+  logSavedMeal(meal: SavedMeal, date: string): void;
+  toggleFavorite(foodId: string): void;
+  isFavorite(foodId: string): boolean;
+  setTheme(theme: Theme): void;
+  setDashboardWidgets(widgets: DashboardWidget[]): void;
+  markReminderRead(id: string): void;
+  refreshReminders(): void;
 }
+
+/** logFood accepts an entry without server-managed fields; loggedAt/imageUrl are optional. */
+export type FoodLogInput = Omit<FoodLog, "id" | "userId" | "createdAt" | "loggedAt" | "imageUrl"> & {
+  loggedAt?: string | null;
+  imageUrl?: string | null;
+};
 
 const Ctx = createContext<AppStore | null>(null);
 
@@ -166,7 +209,25 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   function loadData(userId: string): AppData {
     try {
       const raw = localStorage.getItem(dataKey(userId));
-      if (raw) return { ...EMPTY_DATA, ...(JSON.parse(raw) as AppData) };
+      if (raw) {
+        const parsed = { ...EMPTY_DATA, ...(JSON.parse(raw) as AppData) };
+        // Backfill fields added after a profile was first created.
+        if (parsed.profile) {
+          const p = parsed.profile;
+          parsed.profile = {
+            ...p,
+            theme: p.theme ?? "basic",
+            dashboardWidgets: p.dashboardWidgets ?? DEFAULT_WIDGETS,
+            stepsGoal: p.stepsGoal ?? 8000,
+            exerciseAddsToBudget: p.exerciseAddsToBudget ?? true,
+            timestampsEnabled: p.timestampsEnabled ?? true,
+            weighInSchedule: p.weighInSchedule ?? { enabled: false, days: [1], time: "07:00" },
+            photoUrl: p.photoUrl ?? null,
+          };
+          applyTheme(parsed.profile.theme);
+        }
+        return parsed;
+      }
     } catch {}
     return EMPTY_DATA;
   }
@@ -316,6 +377,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
               onboardingCompleted: false,
               motivationProfileCompleted: false,
               hardGainerProfileCompleted: false,
+              photoUrl: null,
+              theme: "basic",
+              dashboardWidgets: DEFAULT_WIDGETS,
+              stepsGoal: 8000,
+              exerciseAddsToBudget: true,
+              timestampsEnabled: true,
+              weighInSchedule: { enabled: false, days: [1], time: "07:00" },
               createdAt: now,
               updatedAt: now,
               ...p,
@@ -339,9 +407,17 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logFood = useCallback(
-    (entry: Omit<FoodLog, "id" | "userId" | "createdAt">) => {
+    (entry: FoodLogInput) => {
       update((d0) => {
-        const log: FoodLog = { ...entry, id: uid(), userId: userRef.current?.id ?? "", createdAt: new Date().toISOString() };
+        const nowIso = new Date().toISOString();
+        const log: FoodLog = {
+          ...entry,
+          loggedAt: entry.loggedAt ?? (d0.profile?.timestampsEnabled !== false ? nowIso : null),
+          imageUrl: entry.imageUrl ?? null,
+          id: uid(),
+          userId: userRef.current?.id ?? "",
+          createdAt: nowIso,
+        };
         let d = { ...d0, foodLogs: [...d0.foodLogs, log] };
         d = bumpStreak(d, "logging", entry.logDate);
 
@@ -420,6 +496,151 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     [update, bumpStreak],
   );
 
+  /* ---- exercise / steps / notes / saved meals / favorites / theme / reminders ---- */
+
+  const logExercise = useCallback(
+    (entry: Omit<ExerciseLog, "id" | "userId" | "createdAt" | "loggedAt">) => {
+      update((d0) => {
+        const nowIso = new Date().toISOString();
+        const ex: ExerciseLog = {
+          ...entry,
+          id: uid(),
+          userId: userRef.current?.id ?? "",
+          loggedAt: d0.profile?.timestampsEnabled !== false ? nowIso : null,
+          createdAt: nowIso,
+        };
+        return { ...d0, exerciseLogs: [...d0.exerciseLogs, ex] };
+      });
+    },
+    [update],
+  );
+
+  const removeExercise = useCallback(
+    (id: string) => update((d) => ({ ...d, exerciseLogs: d.exerciseLogs.filter((e) => e.id !== id) })),
+    [update],
+  );
+
+  const setSteps = useCallback(
+    (steps: number, date?: string) => {
+      update((d0) => {
+        const logDate = date ?? todayStr();
+        const existing = d0.stepLogs.find((s) => s.logDate === logDate);
+        const entry: StepLog = {
+          id: existing?.id ?? uid(),
+          userId: userRef.current?.id ?? "",
+          logDate,
+          steps,
+          source: "manual",
+          createdAt: existing?.createdAt ?? new Date().toISOString(),
+        };
+        return { ...d0, stepLogs: [...d0.stepLogs.filter((s) => s.logDate !== logDate), entry] };
+      });
+    },
+    [update],
+  );
+
+  const saveNote = useCallback(
+    (body: string, date?: string) => {
+      update((d0) => {
+        const logDate = date ?? todayStr();
+        const note: DailyNote = { id: uid(), userId: userRef.current?.id ?? "", logDate, body, updatedAt: new Date().toISOString() };
+        return { ...d0, dailyNotes: [...d0.dailyNotes.filter((n) => n.logDate !== logDate), note] };
+      });
+    },
+    [update],
+  );
+
+  const noteFor = useCallback((date?: string) => data.dailyNotes.find((n) => n.logDate === (date ?? todayStr())), [data]);
+
+  const saveMeal = useCallback(
+    (meal: Omit<SavedMeal, "id" | "userId" | "createdAt">) => {
+      update((d0) => ({
+        ...d0,
+        savedMeals: [...d0.savedMeals, { ...meal, id: uid(), userId: userRef.current?.id ?? "", createdAt: new Date().toISOString() }],
+      }));
+    },
+    [update],
+  );
+
+  const removeSavedMeal = useCallback(
+    (id: string) => update((d) => ({ ...d, savedMeals: d.savedMeals.filter((m) => m.id !== id) })),
+    [update],
+  );
+
+  const logSavedMeal = useCallback(
+    (meal: SavedMeal, date: string) => {
+      for (const it of meal.items) {
+        logFood({
+          logDate: date,
+          mealType: meal.mealType,
+          foodItemId: it.foodItemId,
+          customName: it.customName,
+          quantity: it.quantity,
+          calories: it.calories,
+          protein: it.protein,
+          carbs: it.carbs,
+          fat: it.fat,
+          fiber: it.fiber,
+          sugar: it.sugar,
+          sodium: it.sodium,
+          foodQualityScore: null,
+          foodQualityLabel: null,
+          notes: `From saved meal: ${meal.name}`,
+        });
+      }
+    },
+    [logFood],
+  );
+
+  const toggleFavorite = useCallback(
+    (foodId: string) =>
+      update((d) => ({
+        ...d,
+        favoriteFoodIds: d.favoriteFoodIds.includes(foodId)
+          ? d.favoriteFoodIds.filter((x) => x !== foodId)
+          : [...d.favoriteFoodIds, foodId],
+      })),
+    [update],
+  );
+
+  const isFavorite = useCallback((foodId: string) => data.favoriteFoodIds.includes(foodId), [data]);
+
+  const setTheme = useCallback(
+    (theme: Theme) => {
+      applyTheme(theme);
+      update((d) => (d.profile ? { ...d, profile: { ...d.profile, theme, updatedAt: new Date().toISOString() } } : d));
+    },
+    [update],
+  );
+
+  const setDashboardWidgets = useCallback(
+    (widgets: DashboardWidget[]) =>
+      update((d) => (d.profile ? { ...d, profile: { ...d.profile, dashboardWidgets: widgets, updatedAt: new Date().toISOString() } } : d)),
+    [update],
+  );
+
+  const markReminderRead = useCallback(
+    (id: string) => update((d) => ({ ...d, reminders: d.reminders.map((r) => (r.id === id ? { ...r, read: true } : r)) })),
+    [update],
+  );
+
+  const refreshReminders = useCallback(() => {
+    update((d0) => {
+      const generated = generateReminders(d0);
+      if (!generated.length) return d0;
+      // Dedupe against reminders already created today of the same kind.
+      const today = todayStr();
+      const existingKinds = new Set(
+        d0.reminders.filter((r) => r.createdAt.slice(0, 10) === today).map((r) => r.kind),
+      );
+      const fresh = generated
+        .filter((r) => !existingKinds.has(r.kind))
+        .map((r) => ({ ...r, id: uid(), userId: userRef.current?.id ?? "", createdAt: new Date().toISOString(), read: false }));
+      if (!fresh.length) return d0;
+      return { ...d0, reminders: [...fresh, ...d0.reminders].slice(0, 40) };
+    });
+  }, [update]);
+
   /* ---- selectors ---- */
 
   const todayStats = useCallback(
@@ -470,8 +691,22 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       weightTrend,
       streakFor,
       awardBadge,
+      logExercise,
+      removeExercise,
+      setSteps,
+      saveNote,
+      noteFor,
+      saveMeal,
+      removeSavedMeal,
+      logSavedMeal,
+      toggleFavorite,
+      isFavorite,
+      setTheme,
+      setDashboardWidgets,
+      markReminderRead,
+      refreshReminders,
     }),
-    [loading, user, data, supabaseMode, signUp, signIn, signOut, update, saveProfile, logFood, removeFoodLog, addWater, addWeighIn, todayStats, recentDays, weightTrend, streakFor, awardBadge],
+    [loading, user, data, supabaseMode, signUp, signIn, signOut, update, saveProfile, logFood, removeFoodLog, addWater, addWeighIn, todayStats, recentDays, weightTrend, streakFor, awardBadge, logExercise, removeExercise, setSteps, saveNote, noteFor, saveMeal, removeSavedMeal, logSavedMeal, toggleFavorite, isFavorite, setTheme, setDashboardWidgets, markReminderRead, refreshReminders],
   );
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
@@ -487,20 +722,110 @@ function tickChallenge(c: Challenge, d: AppData): Challenge {
 function dayStatsFor(data: AppData, date: string): DayStats {
   const logs = data.foodLogs.filter((l) => l.logDate === date);
   const water = data.waterLogs.filter((w) => w.logDate === date).reduce((s, w) => s + w.amountOz, 0);
+  const steps = data.stepLogs.filter((s) => s.logDate === date).reduce((m, s) => Math.max(m, s.steps), 0);
+  const caloriesBurned = Math.round(data.exerciseLogs.filter((e) => e.logDate === date).reduce((s, e) => s + e.caloriesBurned, 0));
   const t = data.targets;
+  const targetCalories = t?.calories ?? 2000;
+  const exerciseAdds = data.profile?.exerciseAddsToBudget ?? false;
   return {
     date,
     calories: Math.round(logs.reduce((s, l) => s + l.calories, 0)),
     protein: Math.round(logs.reduce((s, l) => s + l.protein, 0)),
     carbs: Math.round(logs.reduce((s, l) => s + l.carbs, 0)),
     fat: Math.round(logs.reduce((s, l) => s + l.fat, 0)),
+    fiber: Math.round(logs.reduce((s, l) => s + l.fiber, 0)),
+    sugar: Math.round(logs.reduce((s, l) => s + l.sugar, 0)),
+    sodium: Math.round(logs.reduce((s, l) => s + (l.sodium ?? 0), 0)),
     waterOz: water,
+    steps,
+    caloriesBurned,
     mealsLogged: logs.length,
     loggedMealTypes: [...new Set(logs.map((l) => l.mealType))],
-    targetCalories: t?.calories ?? 2000,
+    targetCalories,
     targetProtein: t?.protein ?? 140,
     targetWaterOz: t?.waterOz ?? 80,
+    effectiveTargetCalories: exerciseAdds ? targetCalories + caloriesBurned : targetCalories,
   };
+}
+
+/* ============================================================
+   In-app reminder generation (#6). Pure function over current
+   data + wall-clock time; emits encouragement/nudges the UI
+   shows in a feed and on app open. Real background push comes
+   with the native wrapper — see README.
+   ============================================================ */
+function generateReminders(d: AppData): Omit<Reminder, "id" | "userId" | "createdAt" | "read">[] {
+  const out: Omit<Reminder, "id" | "userId" | "createdAt" | "read">[] = [];
+  if (!d.profile || !d.targets) return out;
+  const today = todayStr();
+  const hour = new Date().getHours();
+  const logs = d.foodLogs.filter((l) => l.logDate === today);
+  const eaten = logs.reduce((s, l) => s + l.calories, 0);
+  const target = d.targets.calories;
+  const water = d.waterLogs.filter((w) => w.logDate === today).reduce((s, w) => s + w.amountOz, 0);
+  const dir = d.profile.primaryGoal;
+  const gaining = dir === "gain_weight" || dir === "build_muscle";
+  const name = d.profile.name?.split(" ")[0];
+
+  // Behind on calories by mid-afternoon.
+  if (hour >= 14 && logs.length > 0) {
+    const expected = target * (Math.min(hour, 21) / 21);
+    if (gaining && eaten < expected - 400) {
+      out.push({
+        kind: "behind_nudge",
+        message: `You're ${Math.round(expected - eaten)} calories behind pace for a gaining day. A shake or a calorie-dense snack now beats trying to cram it at 9pm.`,
+        actionHref: "/log",
+      });
+    } else if (!gaining && eaten > target + 300 && hour < 19) {
+      out.push({
+        kind: "behind_nudge",
+        message: `You're over target with the evening still ahead. Not a failure — just plan a lighter dinner and pre-log it.`,
+        actionHref: "/log",
+      });
+    }
+  }
+
+  // No meals logged yet, and it's past mid-morning.
+  if (hour >= 11 && logs.length === 0) {
+    out.push({
+      kind: "log_nudge",
+      message: `${name ? name + ", n" : "N"}othing logged yet today. Two taps gets you back on the board — start with whatever you already ate.`,
+      actionHref: "/log",
+    });
+  }
+
+  // Water behind in the afternoon.
+  if (hour >= 15 && water < d.targets.waterOz * 0.5) {
+    out.push({
+      kind: "water_nudge",
+      message: `Hydration's lagging — ${water}/${d.targets.waterOz} oz. Knock out a glass now and tap +16.`,
+      actionHref: "/dashboard",
+    });
+  }
+
+  // Scheduled weigh-in day.
+  const sched = d.profile.weighInSchedule;
+  if (sched?.enabled && sched.days.includes(new Date().getDay())) {
+    const weighedToday = d.weighIns.some((w) => w.logDate === today);
+    if (!weighedToday && hour >= Number(sched.time.split(":")[0])) {
+      out.push({
+        kind: "weigh_in",
+        message: `It's a scheduled weigh-in day. Same time, same conditions — step on and log it. The trend needs the data point.`,
+        actionHref: "/progress",
+      });
+    }
+  }
+
+  // Encouragement when things are going well.
+  if (logs.length >= 2 && ((gaining && eaten >= target * 0.8) || (!gaining && Math.abs(eaten - target) < target * 0.15))) {
+    out.push({
+      kind: "encouragement",
+      message: `On pace and logging consistently today. This is exactly the pattern that moves the needle — keep stacking it.`,
+      actionHref: null,
+    });
+  }
+
+  return out;
 }
 
 export function useApp(): AppStore {

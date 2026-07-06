@@ -67,14 +67,29 @@ API keys are read only in server code — they are never shipped to the client.
 | Feature | MVP behavior | Upgrade path |
 | --- | --- | --- |
 | AI coach chat | Rule-based engine: adherence assessment → tone mode (celebrate/encourage/nudge/challenge/reset) → style-voiced message quoting the user's own "why" | Set `AI_PROVIDER` env vars (above) |
-| Food search | 36-item seed catalog with macros + goal-aware quality scores | Implement `FoodDatabaseProvider` in `lib/food-db/provider.ts` for USDA FoodData Central / Open Food Facts / Nutritionix / FatSecret |
-| Barcode scan | Placeholder (`lookupBarcode` returns null) | Same provider interface |
-| Meal plan generation | Template-based generator with modes (meal prep / simple / high-calorie / fat-loss / budget) | Swap generator internals for an AI call; the UI contract stays |
+| Food search | Seed catalog **+ live Open Food Facts** full-text search (`search.openfoodfacts.org`) via `/api/food/search`, mapped to macros, micros, Nutri-Score grade, ingredients, and product photo | Add a paid provider (Nutritionix/FatSecret) behind the same `/api/food/*` contract if you outgrow OFF |
+| Barcode scan | Live: native `BarcodeDetector` + camera where supported (Chrome/Android), manual entry fallback (iOS Safari); both resolve against Open Food Facts via `/api/food/barcode` | — |
+| Food label | Full FDA-style nutrition-facts panel with letter grade + ingredients, shown on tap | — |
+| Meal plan generation | Template-based generator with modes (meal prep / simple / high-calorie / fat-loss / budget), behind a branded ~8s generating animation | Swap generator internals for an AI call; the UI contract stays |
+| Steps & calories burned | **Manual + editable** entry, step goal, and charts. Exercise optionally adds to the calorie budget | Automatic **Apple Health / Health Connect** sync needs a native wrapper — see below |
+| Reminders / encouragement (#6) | **In-app** feed + on-open nudges generated from the day's data (behind, un-logged, hydration, scheduled weigh-in, encouragement) | Background push every 2–3 hrs needs the native wrapper (service worker web-push is unreliable on iOS) |
 | Health integrations | "Coming soon" cards on Profile; `health_integrations` table + types ready | Apple Health / Health Connect need a native wrapper (Capacitor is the pragmatic route for this codebase); Fitbit/Garmin are OAuth + REST and can be Edge Functions |
 | Weekly review | Body Learning Engine insight card on the dashboard | Scheduled Supabase Edge Function writing to `recommendations` |
 
+### Native wrapper (Apple Health, background push)
+
+Two requested features can't be delivered by a browser app and are intentionally built as manual/in-app versions now:
+
+- **Apple Health / Health Connect** step & calorie-burn sync — a browser can't read HealthKit. Wrap the app with **Capacitor** and use a HealthKit plugin; the `stepLogs` / `exerciseLogs` shapes and the Steps/Calories cards are already there to receive synced data (`source: "apple_health"` is reserved).
+- **Background reminders every 2–3 hours** — reliable scheduled notifications need native. The in-app reminder engine (`generateReminders` in the store) already produces the messages; a native layer would deliver them as push. iOS Safari web-push is too limited to rely on.
+
+Everything else on the roadmap runs today in the web app.
+
 ## Product notes
 
+- **Themes.** Basic (dark slate), Light, and Dark, switchable in Profile → Appearance; everything themes through CSS variables in `globals.css`.
+- **Customizable Today screen.** Users pick which cards/metrics show (rings, macros, coach, steps, calories burned, water, weight, plan, body-learning, fiber, sugar, sodium, net calories) in Profile.
+- **Rich food logging.** Category icons, tap-to-view nutrition label with grade + ingredients, per-item photo upload, favorites, reusable saved meals, 12 meal types, auto timestamps, exercise entry, daily notes, and water — all on the Log screen.
 - **Goal-aware everything.** Dashboard copy, food quality labels, meal templates, and coach language all pivot on the goal direction (loss / gain / maintain). Calorie-dense food scores *up* for hard gainers.
 - **Coach styles.** Encouraging / Balanced / No Excuses. No Excuses requires the double confirmation ("I want the hard truth." → "Yes. Hold me accountable.") both in onboarding and settings.
 - **Safety rails.** The coach challenges behavior, never identity; never recommends skipping meals, punishment, or compensatory behavior. Rules are enforced in the rule engine copy and injected into the AI system prompt (`COACH_SAFETY_RULES`). Wellness + AI disclaimers appear in onboarding, profile, coach page, and landing footer.

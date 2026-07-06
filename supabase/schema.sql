@@ -39,6 +39,14 @@ create table if not exists user_profiles (
   onboarding_completed boolean not null default false,
   motivation_profile_completed boolean not null default false,
   hard_gainer_profile_completed boolean not null default false,
+  -- Added features
+  photo_url text,
+  theme text not null default 'basic' check (theme in ('basic','light','dark')),
+  dashboard_widgets text[] not null default '{rings,macros,coach,steps,calories_burned,water,weight,plan,body_learning}',
+  steps_goal int not null default 8000,
+  exercise_adds_to_budget boolean not null default true,
+  timestamps_enabled boolean not null default true,
+  weigh_in_schedule jsonb not null default '{"enabled":false,"days":[1],"time":"07:00"}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -142,10 +150,76 @@ create table if not exists food_logs (
   food_quality_score int,
   food_quality_label text,
   notes text,
+  logged_at timestamptz,       -- timestamp of entry (#19)
+  image_url text,              -- user/OFF photo (#1)
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create index if not exists food_logs_user_date on food_logs (user_id, log_date);
+
+-- ---------- exercise / steps / notes / saved meals / favorites / reminders ----------
+create table if not exists exercise_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  log_date date not null,
+  type text not null,
+  name text not null,
+  duration_minutes int not null default 0,
+  calories_burned int not null default 0,
+  logged_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists exercise_logs_user_date on exercise_logs (user_id, log_date);
+
+create table if not exists step_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  log_date date not null,
+  steps int not null default 0,
+  source text not null default 'manual',
+  created_at timestamptz not null default now(),
+  unique (user_id, log_date)
+);
+
+create table if not exists daily_notes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  log_date date not null,
+  body text not null default '',
+  updated_at timestamptz not null default now(),
+  unique (user_id, log_date)
+);
+
+create table if not exists saved_meals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  meal_type text not null,
+  items jsonb not null default '[]',
+  calories numeric not null default 0,
+  protein numeric not null default 0,
+  carbs numeric not null default 0,
+  fat numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists favorite_foods (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  food_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, food_id)
+);
+
+create table if not exists reminders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  kind text not null,
+  message text not null,
+  action_href text,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists reminders_user on reminders (user_id, created_at);
 
 create table if not exists daily_targets (
   id uuid primary key default gen_random_uuid(),
@@ -348,6 +422,12 @@ alter table badges enable row level security;
 alter table streaks enable row level security;
 alter table health_integrations enable row level security;
 alter table recommendations enable row level security;
+alter table exercise_logs enable row level security;
+alter table step_logs enable row level security;
+alter table daily_notes enable row level security;
+alter table saved_meals enable row level security;
+alter table favorite_foods enable row level security;
+alter table reminders enable row level security;
 
 -- user_profiles keys off auth_user_id
 create policy "own profile" on user_profiles for all
@@ -368,6 +448,12 @@ create policy "own rows" on badges for all using (auth.uid() = user_id) with che
 create policy "own rows" on streaks for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own rows" on health_integrations for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own rows" on recommendations for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own rows" on exercise_logs for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own rows" on step_logs for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own rows" on daily_notes for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own rows" on saved_meals for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own rows" on favorite_foods for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own rows" on reminders for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- recipes: own rows OR shared seed recipes (user_id null → readable by all)
 create policy "read shared or own recipes" on recipes for select using (user_id is null or auth.uid() = user_id);

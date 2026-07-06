@@ -77,7 +77,7 @@ export default function ProgressPage() {
         />
       </div>
 
-      <Charts weighData={weighData} days={days} targets={data.targets} />
+      <Charts weighData={weighData} days={days} targets={data.targets} stepsGoal={profile.stepsGoal} />
 
       {/* Streaks */}
       <Card padding={16}>

@@ -8,6 +8,7 @@ import { Chip, Pill } from "@/components/ui/Chip";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { GeneratingOverlay } from "@/components/ui/GeneratingOverlay";
 import { NavHeader } from "@/components/ui/NavHeader";
 import { useApp, uid } from "@/lib/store/AppStoreProvider";
 import { templatesForGoal, type MealTemplate } from "@/data/meal-templates";
@@ -56,6 +57,7 @@ export default function MealPlanPage() {
   const [wkStart, setWkStart] = useState(weekStart(todayStr()));
   const [addSlot, setAddSlot] = useState<MealType | null>(null);
   const [genOpen, setGenOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [mode, setMode] = useState<PlanMode>("auto");
   const [customItem, setCustomItem] = useState("");
 
@@ -136,11 +138,15 @@ export default function MealPlanPage() {
           });
       });
     });
-    update((d) => ({
-      ...d,
-      plannedMeals: [...d.plannedMeals.filter((m) => !(m.plannedDate >= wkStart && m.plannedDate <= addDays(wkStart, 6))), ...meals],
-    }));
     setGenOpen(false);
+    setGenerating(true);
+    setTimeout(() => {
+      update((d) => ({
+        ...d,
+        plannedMeals: [...d.plannedMeals.filter((m) => !(m.plannedDate >= wkStart && m.plannedDate <= addDays(wkStart, 6))), ...meals],
+      }));
+      setGenerating(false);
+    }, 8000);
   }
 
   function generateGroceries() {
@@ -436,6 +442,18 @@ export default function MealPlanPage() {
             ))}
         </div>
       </Modal>
+
+      <GeneratingOverlay
+        key={generating ? "gen-on" : "gen-off"}
+        open={generating}
+        steps={[
+          "Reading your goal & preferences…",
+          `Applying ${MODES.find((m) => m.value === mode)?.label ?? "your"} mode…`,
+          "Choosing meals that fit your macros…",
+          "Balancing the week…",
+          "Laying out your plan…",
+        ]}
+      />
 
       {/* Generate modal */}
       <Modal open={genOpen} onClose={() => setGenOpen(false)} title="Generate week">
