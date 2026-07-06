@@ -49,9 +49,15 @@ supabase/
 1. Create a project at supabase.com.
 2. Run `supabase/schema.sql` in the SQL editor (and optionally `seed.sql`).
 3. Copy `.env.example` → `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. Restart the dev server. Auth now runs through Supabase (email/password).
+4. Restart the dev server. Auth runs through Supabase (email/password) **and your data syncs to the cloud**.
 
-**Note:** in this MVP, entity data (logs, plans, streaks…) persists to localStorage keyed by user id, while auth is real Supabase. The entity shapes in `src/types` mirror `schema.sql` column-for-column, so migrating persistence is mechanical: replace the `persist`/`loadData` calls in `lib/store/AppStoreProvider.tsx` with Supabase queries (RLS policies are already written). This was deliberate — it keeps the MVP runnable with zero setup while locking the schema in early.
+### Persistence & cloud sync
+
+With Supabase configured, the app **syncs across devices**. Persistence uses a **document-sync** model: the whole per-user data object is stored as one JSONB row in the `app_state` table (RLS: each user sees only their row). On login the app loads the cloud document (falling back to the localStorage cache, and migrating any local-only data up on the first cloud login); every change writes localStorage immediately and pushes to the cloud on a short debounce. A sync indicator (Saving / Synced / Offline) shows in the Today header. With no Supabase keys, the app runs exactly as before in local demo mode.
+
+Why document-sync and not per-table writes: the store holds all data in one object mutated as a unit, so a JSONB document is the clean, low-risk fit. The normalized tables in `schema.sql` remain the target for server-side queries and sharing — migrate incrementally when a feature needs it:
+- **Social / accountability partner** should expose a narrow shared slice (e.g. a `connections` table + a `shared_stats` row a partner can read via RLS), not the whole document — a focused next step on top of this.
+- **Photos** currently ride inside the synced document as compressed data URLs (fine for MVP volumes). Move them to **Supabase Storage** (store URLs) once the document grows large.
 
 ## Connecting a real AI coach
 

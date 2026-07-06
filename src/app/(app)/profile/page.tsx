@@ -452,11 +452,11 @@ export default function ProfilePage() {
         <CardTitle>Account</CardTitle>
         <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 14 }}>
           {user?.email}
-          {!supabaseMode && (
-            <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 4 }}>
-              Local demo mode — data lives on this device. Connect Supabase in .env.local for cloud sync.
-            </div>
-          )}
+          <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 4 }}>
+            {supabaseMode
+              ? "Cloud sync is on — your data is saved to your account and follows you across devices."
+              : "Local demo mode — data lives on this device. Add Supabase keys to .env.local for cloud sync across devices."}
+          </div>
         </div>
         <Button
           variant="outline"

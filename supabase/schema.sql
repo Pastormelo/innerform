@@ -417,6 +417,17 @@ create table if not exists recommendations (
   updated_at timestamptz not null default now()
 );
 
+-- ---------- app_state (cloud document sync) ----------
+-- The app currently persists the whole per-user data document as one JSONB
+-- row here, giving cross-device sync without a per-table rewrite. The
+-- normalized tables above remain the target for server-side queries and
+-- sharing; migrate incrementally when needed.
+create table if not exists app_state (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  data jsonb not null default '{}',
+  updated_at timestamptz not null default now()
+);
+
 -- ============================================================
 -- Row Level Security
 -- ============================================================
@@ -446,6 +457,7 @@ alter table saved_meals enable row level security;
 alter table favorite_foods enable row level security;
 alter table reminders enable row level security;
 alter table progress_photos enable row level security;
+alter table app_state enable row level security;
 
 -- user_profiles keys off auth_user_id
 create policy "own profile" on user_profiles for all
@@ -473,6 +485,7 @@ create policy "own rows" on saved_meals for all using (auth.uid() = user_id) wit
 create policy "own rows" on favorite_foods for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own rows" on reminders for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own rows" on progress_photos for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own state" on app_state for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- recipes: own rows OR shared seed recipes (user_id null → readable by all)
 create policy "read shared or own recipes" on recipes for select using (user_id is null or auth.uid() = user_id);

@@ -11,6 +11,7 @@ import { Pill } from "@/components/ui/Chip";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Wordmark } from "@/components/brand/Logo";
+import { SyncBadge } from "@/components/ui/SyncBadge";
 import { useApp } from "@/lib/store/AppStoreProvider";
 import { buildCoachContext } from "@/lib/coach/context";
 import { dailyCoachMessage } from "@/lib/coach/engine";
@@ -257,11 +258,14 @@ export default function DashboardPage() {
       {/* Header with logo (#11) */}
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Wordmark size={16} />
-        {loggingStreak > 0 && (
-          <Pill color="var(--gold-500)">
-            <Flame size={13} /> {loggingStreak}-day streak
-          </Pill>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <SyncBadge />
+          {loggingStreak > 0 && (
+            <Pill color="var(--gold-500)">
+              <Flame size={13} /> {loggingStreak}-day streak
+            </Pill>
+          )}
+        </div>
       </header>
 
       <div>

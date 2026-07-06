@@ -37,6 +37,9 @@ import { computeTargets } from "@/lib/nutrition/calculations";
 import { addDays, daysAgo, todayStr } from "@/lib/dates";
 import { applyTheme } from "@/lib/theme";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { hasMeaningfulData, loadCloudState, saveCloudState } from "@/lib/supabase/sync";
+
+export type SyncStatus = "idle" | "saving" | "synced" | "offline";
 
 /* ============================================================
    App store — auth + all user data behind one hook.
@@ -128,6 +131,7 @@ interface AppStore {
   user: AuthUser | null;
   data: AppData;
   supabaseMode: boolean;
+  syncStatus: SyncStatus;
   signUp(email: string, password: string): Promise<string | null>;
   signIn(email: string, password: string): Promise<string | null>;
   signOut(): Promise<void>;
@@ -180,31 +184,48 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [data, setData] = useState<AppData>(EMPTY_DATA);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const userRef = useRef<AuthUser | null>(null);
   userRef.current = user;
   const supabaseMode = isSupabaseConfigured();
+  const cloudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ---- boot: restore session ---- */
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
-      supabase.auth.getUser().then(({ data: { user: su } }) => {
-        if (su) {
-          const u = { id: su.id, email: su.email ?? "", isDemo: false };
-          setUser(u);
-          setData(loadData(u.id));
+      const hydrate = async (su: { id: string; email?: string }) => {
+        const u = { id: su.id, email: su.email ?? "", isDemo: false };
+        setUser(u);
+        // Prefer cloud; fall back to the local cache; migrate local up if cloud is empty.
+        const local = loadData(u.id);
+        const cloud = await loadCloudState(supabase, u.id);
+        if (cloud) {
+          const normalized = normalize(cloud);
+          setData(normalized);
+          persistLocal(u.id, normalized);
+          setSyncStatus("synced");
+        } else {
+          setData(local);
+          if (hasMeaningfulData(local)) {
+            const ok = await saveCloudState(supabase, u.id, local);
+            setSyncStatus(ok ? "synced" : "offline");
+          } else {
+            setSyncStatus("synced");
+          }
         }
+      };
+      supabase.auth.getUser().then(async ({ data: { user: su } }) => {
+        if (su) await hydrate(su);
         setLoading(false);
       });
       const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
         const su = session?.user;
-        if (su) {
-          const u = { id: su.id, email: su.email ?? "", isDemo: false };
-          setUser(u);
-          setData(loadData(u.id));
-        } else {
+        if (su) void hydrate(su);
+        else {
           setUser(null);
           setData(EMPTY_DATA);
+          setSyncStatus("idle");
         }
       });
       return () => sub.subscription.unsubscribe();
@@ -221,43 +242,62 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       } catch {}
       setLoading(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Merge a raw document onto defaults and backfill fields added over time. */
+  function normalize(raw: AppData): AppData {
+    const parsed = { ...EMPTY_DATA, ...raw };
+    if (parsed.profile) {
+      const p = parsed.profile;
+      parsed.profile = {
+        ...p,
+        theme: p.theme ?? "basic",
+        dashboardWidgets: p.dashboardWidgets ?? DEFAULT_WIDGETS,
+        stepsGoal: p.stepsGoal ?? 8000,
+        exerciseAddsToBudget: p.exerciseAddsToBudget ?? true,
+        timestampsEnabled: p.timestampsEnabled ?? true,
+        weighInSchedule: p.weighInSchedule ?? { enabled: false, days: [1], time: "07:00" },
+        photoUrl: p.photoUrl ?? null,
+        macroCycling: p.macroCycling ?? { enabled: false, trainingDays: [1, 3, 5], trainingCalorieDelta: 250, restCalorieDelta: -150 },
+        hydrationReminders: p.hydrationReminders ?? true,
+        customMealTypes: p.customMealTypes ?? [],
+      };
+      if (parsed.streakFreezes == null) parsed.streakFreezes = 2;
+      applyTheme(parsed.profile.theme);
+    }
+    return parsed;
+  }
 
   function loadData(userId: string): AppData {
     try {
       const raw = localStorage.getItem(dataKey(userId));
-      if (raw) {
-        const parsed = { ...EMPTY_DATA, ...(JSON.parse(raw) as AppData) };
-        // Backfill fields added after a profile was first created.
-        if (parsed.profile) {
-          const p = parsed.profile;
-          parsed.profile = {
-            ...p,
-            theme: p.theme ?? "basic",
-            dashboardWidgets: p.dashboardWidgets ?? DEFAULT_WIDGETS,
-            stepsGoal: p.stepsGoal ?? 8000,
-            exerciseAddsToBudget: p.exerciseAddsToBudget ?? true,
-            timestampsEnabled: p.timestampsEnabled ?? true,
-            weighInSchedule: p.weighInSchedule ?? { enabled: false, days: [1], time: "07:00" },
-            photoUrl: p.photoUrl ?? null,
-            macroCycling: p.macroCycling ?? { enabled: false, trainingDays: [1, 3, 5], trainingCalorieDelta: 250, restCalorieDelta: -150 },
-            hydrationReminders: p.hydrationReminders ?? true,
-            customMealTypes: p.customMealTypes ?? [],
-          };
-          if (parsed.streakFreezes == null) parsed.streakFreezes = 2;
-          applyTheme(parsed.profile.theme);
-        }
-        return parsed;
-      }
+      if (raw) return normalize(JSON.parse(raw) as AppData);
     } catch {}
     return EMPTY_DATA;
   }
 
-  const persist = useCallback((userId: string, d: AppData) => {
+  const persistLocal = useCallback((userId: string, d: AppData) => {
     try {
       localStorage.setItem(dataKey(userId), JSON.stringify(d));
     } catch {}
   }, []);
+
+  const persist = useCallback(
+    (userId: string, d: AppData) => {
+      persistLocal(userId, d);
+      // Debounced cloud push (Supabase mode only).
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+      setSyncStatus("saving");
+      if (cloudTimer.current) clearTimeout(cloudTimer.current);
+      cloudTimer.current = setTimeout(async () => {
+        const ok = await saveCloudState(supabase, userId, d);
+        setSyncStatus(ok ? "synced" : "offline");
+      }, 1200);
+    },
+    [persistLocal],
+  );
 
   const update = useCallback(
     (mutator: (d: AppData) => AppData) => {
@@ -296,6 +336,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     setUser(u);
     setData(EMPTY_DATA);
     return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
@@ -318,6 +359,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     setUser(u);
     setData(loadData(u.id));
     return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const signOut = useCallback(async () => {
@@ -803,6 +845,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       user,
       data,
       supabaseMode,
+      syncStatus,
       signUp,
       signIn,
       signOut,
@@ -841,7 +884,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       removeCustomMealType,
       reorderCustomMealType,
     }),
-    [loading, user, data, supabaseMode, signUp, signIn, signOut, update, saveProfile, logFood, removeFoodLog, addWater, addWeighIn, todayStats, recentDays, weightTrend, streakFor, awardBadge, logExercise, removeExercise, setSteps, saveNote, noteFor, saveMeal, removeSavedMeal, logSavedMeal, toggleFavorite, isFavorite, setTheme, setDashboardWidgets, markReminderRead, refreshReminders, saveRecipe, removeRecipe, logRecipe, addProgressPhoto, removeProgressPhoto, applyStreakFreeze, addCustomMealType, removeCustomMealType, reorderCustomMealType],
+    [loading, user, data, supabaseMode, syncStatus, signUp, signIn, signOut, update, saveProfile, logFood, removeFoodLog, addWater, addWeighIn, todayStats, recentDays, weightTrend, streakFor, awardBadge, logExercise, removeExercise, setSteps, saveNote, noteFor, saveMeal, removeSavedMeal, logSavedMeal, toggleFavorite, isFavorite, setTheme, setDashboardWidgets, markReminderRead, refreshReminders, saveRecipe, removeRecipe, logRecipe, addProgressPhoto, removeProgressPhoto, applyStreakFreeze, addCustomMealType, removeCustomMealType, reorderCustomMealType],
   );
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
