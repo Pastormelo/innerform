@@ -38,8 +38,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${bigShoulders.variable} ${hanken.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
+    <html lang="en" className={`${bigShoulders.variable} ${hanken.variable} h-full antialiased`} suppressHydrationWarning>
+      {/* suppressHydrationWarning: browser extensions (Grammarly, etc.) inject
+          attributes on <body> before React hydrates; ignore those mismatches. */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <AppStoreProvider>{children}</AppStoreProvider>
       </body>
     </html>
