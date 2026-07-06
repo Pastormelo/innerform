@@ -67,6 +67,24 @@ export interface WeighInSchedule {
   time: string; // HH:MM
 }
 
+/** Training- vs rest-day calorie/carb targets (macro cycling). */
+export interface MacroCycling {
+  enabled: boolean;
+  trainingDays: number[]; // 0=Sun … 6=Sat
+  trainingCalorieDelta: number; // added to base target on training days (carbs absorb it)
+  restCalorieDelta: number; // added (usually negative) on rest days
+}
+
+export interface ProgressPhoto {
+  id: string;
+  userId: string;
+  logDate: string;
+  imageUrl: string;
+  weight: number | null;
+  note: string | null;
+  createdAt: string;
+}
+
 export interface UserProfile {
   id: string;
   authUserId: string;
@@ -106,6 +124,8 @@ export interface UserProfile {
   exerciseAddsToBudget: boolean; // (#20)
   timestampsEnabled: boolean; // (#19)
   weighInSchedule: WeighInSchedule; // (#5)
+  macroCycling: MacroCycling;
+  hydrationReminders: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -565,6 +585,22 @@ export interface QualityResult {
   score: number; // 0–100
   tier: QualityTier;
   label: string; // goal-aware, e.g. "Useful for gaining"
+}
+
+/* ---- Weekly review ---- */
+
+export interface WeeklyReview {
+  weekLabel: string;
+  daysLogged: number;
+  avgCalories: number;
+  targetCalories: number;
+  proteinConsistencyPct: number;
+  waterConsistencyPct: number;
+  weightChangeLbs: number | null;
+  bestDay: string | null;
+  wins: string[];
+  oneFix: string;
+  headline: string;
 }
 
 /* ---- Body learning ---- */

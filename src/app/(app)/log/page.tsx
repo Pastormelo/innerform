@@ -18,7 +18,7 @@ import {
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Chip, Pill } from "@/components/ui/Chip";
-import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Field, Input, Select, Textarea } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Stepper } from "@/components/ui/Stepper";
@@ -322,8 +322,9 @@ function IconBtn({ children, disabled, ...rest }: React.ButtonHTMLAttributes<HTM
 /* ============ Add food modal ============ */
 
 function AddFoodModal({ open, mealType: initialMealType, date, dir, onClose }: { open: boolean; mealType: MealType; date: string; dir: GoalDirection; onClose: () => void }) {
-  const { data, logFood, logSavedMeal, toggleFavorite, isFavorite } = useApp();
-  const [tab, setTab] = useState<"search" | "manual" | "saved">("search");
+  const { data, logFood, logSavedMeal, toggleFavorite, isFavorite, saveRecipe, removeRecipe, logRecipe } = useApp();
+  const [tab, setTab] = useState<"search" | "manual" | "saved" | "recipes">("search");
+  const [builderOpen, setBuilderOpen] = useState(false);
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [query, setQuery] = useState("");
   const [seedResults, setSeedResults] = useState<FoodItem[]>([]);
@@ -447,8 +448,9 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, onClose }: {
           <SegmentedControl
             options={[
               { value: "search", label: "Search" },
-              { value: "manual", label: "Quick add" },
+              { value: "manual", label: "Quick" },
               { value: "saved", label: "Saved" },
+              { value: "recipes", label: "Recipes" },
             ]}
             value={tab}
             onChange={setTab}
@@ -592,10 +594,168 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, onClose }: {
               )}
             </div>
           )}
+
+          {tab === "recipes" && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <Button variant="secondary" fullWidth onClick={() => setBuilderOpen(true)} leadingIcon={<Plus size={15} />}>
+                New recipe
+              </Button>
+              {data.recipes.length === 0 ? (
+                <p style={{ fontSize: 14, color: "var(--text-muted)", textAlign: "center", padding: 12 }}>
+                  No recipes yet. Build one once (ingredients + servings) and log a serving anytime.
+                </p>
+              ) : (
+                data.recipes.map((r) => (
+                  <div key={r.id} className="if-glass" style={{ padding: 14, display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 600 }}>{r.title}</div>
+                      <div className="if-num" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        {r.servings} servings · {r.caloriesPerServing} kcal/serving · P{r.proteinPerServing}
+                      </div>
+                    </div>
+                    <IconBtn onClick={() => removeRecipe(r.id)} aria-label="Delete recipe">
+                      <Trash2 size={14} />
+                    </IconBtn>
+                    <Button size="sm" onClick={() => { logRecipe(r, 1, date, mealType); onClose(); }} leadingIcon={<Plus size={14} />}>
+                      Log 1
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </Modal>
       <BarcodeScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={onScan} />
+      <RecipeBuilderModal open={builderOpen} dir={dir} onClose={() => setBuilderOpen(false)} onSave={saveRecipe} />
     </>
+  );
+}
+
+/* ============ Recipe builder ============ */
+
+function RecipeBuilderModal({
+  open,
+  dir,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  dir: GoalDirection;
+  onClose: () => void;
+  onSave: (r: Omit<import("@/types").Recipe, "id" | "userId">) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [servings, setServings] = useState(4);
+  const [ingredients, setIngredients] = useState<{ name: string; calories: number; protein: number; carbs: number; fat: number }[]>([]);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<FoodItem[]>([]);
+
+  React.useEffect(() => {
+    let active = true;
+    const t = setTimeout(async () => {
+      if (!query.trim()) {
+        setResults([]);
+        return;
+      }
+      const { seed, remote } = await searchFoods(query);
+      if (active) setResults([...seed, ...remote].slice(0, 12));
+    }, 350);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [query]);
+
+  const totals = ingredients.reduce(
+    (s, i) => ({ calories: s.calories + i.calories, protein: s.protein + i.protein, carbs: s.carbs + i.carbs, fat: s.fat + i.fat }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+  const per = (v: number) => Math.round(v / Math.max(1, servings));
+  void dir;
+
+  function save() {
+    if (!title.trim() || ingredients.length === 0) return;
+    onSave({
+      title: title.trim(),
+      description: "",
+      instructions: [],
+      prepTimeMinutes: 0,
+      cookTimeMinutes: 0,
+      servings,
+      caloriesPerServing: per(totals.calories),
+      proteinPerServing: per(totals.protein),
+      carbsPerServing: per(totals.carbs),
+      fatPerServing: per(totals.fat),
+      tags: [],
+      ingredients: ingredients.map((i) => ({ name: i.name, quantity: "1 serving", groceryCategory: "other" as const })),
+    });
+    setTitle("");
+    setServings(4);
+    setIngredients([]);
+    setQuery("");
+    onClose();
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="New recipe">
+      <div style={{ display: "grid", gap: 14 }}>
+        <Input label="Recipe name" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Chicken & rice meal prep" />
+        <Field label="Servings this recipe makes">
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <Stepper value={servings} onChange={setServings} min={1} max={20} step={1} format={(v) => String(v)} />
+          </div>
+        </Field>
+
+        <div>
+          <div className="if-overline" style={{ color: "var(--text-muted)", marginBottom: 8 }}>Ingredients</div>
+          {ingredients.map((i, idx) => (
+            <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid var(--border-subtle)", fontSize: 13.5 }}>
+              <span style={{ flex: 1 }}>{i.name}</span>
+              <span className="if-num" style={{ color: "var(--text-muted)", fontSize: 12 }}>{i.calories} kcal</span>
+              <IconBtn onClick={() => setIngredients(ingredients.filter((_, x) => x !== idx))} aria-label="Remove">
+                <Trash2 size={13} />
+              </IconBtn>
+            </div>
+          ))}
+          <div style={{ position: "relative", marginTop: 10 }}>
+            <Search size={16} style={{ position: "absolute", left: 12, top: 15, color: "var(--text-muted)" }} />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Add an ingredient…" style={{ paddingLeft: 38 }} />
+          </div>
+          <div style={{ display: "grid", gap: 4, marginTop: 8, maxHeight: 180, overflowY: "auto" }}>
+            {results.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => {
+                  setIngredients([...ingredients, { name: f.name, calories: f.calories, protein: f.protein, carbs: f.carbs, fat: f.fat }]);
+                  setQuery("");
+                  setResults([]);
+                }}
+                className="if-hover"
+                style={{ ...rowStyle, padding: "8px 10px" }}
+              >
+                <FoodIcon food={f} size={16} />
+                <span style={{ flex: 1, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</span>
+                <span className="if-num" style={{ fontSize: 12, color: "var(--text-muted)" }}>{f.calories} kcal</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {ingredients.length > 0 && (
+          <div className="if-glass" style={{ padding: 12 }}>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+              Per serving ({servings} total): <strong className="if-num">{per(totals.calories)} kcal</strong> · P{per(totals.protein)} · C{per(totals.carbs)} · F{per(totals.fat)}
+            </div>
+          </div>
+        )}
+
+        <Button fullWidth disabled={!title.trim() || ingredients.length === 0} onClick={save}>
+          Save recipe
+        </Button>
+      </div>
+    </Modal>
   );
 }
 

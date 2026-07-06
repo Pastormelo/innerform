@@ -47,6 +47,9 @@ create table if not exists user_profiles (
   exercise_adds_to_budget boolean not null default true,
   timestamps_enabled boolean not null default true,
   weigh_in_schedule jsonb not null default '{"enabled":false,"days":[1],"time":"07:00"}',
+  macro_cycling jsonb not null default '{"enabled":false,"trainingDays":[1,3,5],"trainingCalorieDelta":250,"restCalorieDelta":-150}',
+  hydration_reminders boolean not null default true,
+  streak_freezes int not null default 2,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -221,6 +224,18 @@ create table if not exists reminders (
 );
 create index if not exists reminders_user on reminders (user_id, created_at);
 
+-- recipes table already declared above (user recipes); progress photos:
+create table if not exists progress_photos (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  log_date date not null,
+  image_url text not null,
+  weight numeric,
+  note text,
+  created_at timestamptz not null default now()
+);
+create index if not exists progress_photos_user on progress_photos (user_id, log_date);
+
 create table if not exists daily_targets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -280,6 +295,7 @@ create table if not exists recipes (
   carbs_per_serving numeric,
   fat_per_serving numeric,
   tags text[] not null default '{}',
+  ingredients jsonb not null default '[]',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -428,6 +444,7 @@ alter table daily_notes enable row level security;
 alter table saved_meals enable row level security;
 alter table favorite_foods enable row level security;
 alter table reminders enable row level security;
+alter table progress_photos enable row level security;
 
 -- user_profiles keys off auth_user_id
 create policy "own profile" on user_profiles for all
@@ -454,6 +471,7 @@ create policy "own rows" on daily_notes for all using (auth.uid() = user_id) wit
 create policy "own rows" on saved_meals for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own rows" on favorite_foods for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own rows" on reminders for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own rows" on progress_photos for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- recipes: own rows OR shared seed recipes (user_id null → readable by all)
 create policy "read shared or own recipes" on recipes for select using (user_id is null or auth.uid() = user_id);

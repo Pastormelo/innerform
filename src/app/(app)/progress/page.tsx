@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Award, Droplet, Flame, Scale, Trophy, UtensilsCrossed } from "lucide-react";
+import { Award, Camera, Droplet, Flame, ImageIcon, Scale, Snowflake, Trophy, Trash2, UtensilsCrossed } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -11,7 +11,8 @@ import { StatTile } from "@/components/ui/StatTile";
 import { Pill } from "@/components/ui/Chip";
 import { NavHeader } from "@/components/ui/NavHeader";
 import { useApp } from "@/lib/store/AppStoreProvider";
-import { formatShort, todayStr } from "@/lib/dates";
+import { fileToResizedDataUrl } from "@/lib/image";
+import { daysAgo, formatShort, todayStr } from "@/lib/dates";
 import { formatWeight } from "@/lib/nutrition/calculations";
 import type { StreakType } from "@/types";
 
@@ -28,12 +29,24 @@ const STREAK_META: { type: StreakType; label: string; Icon: React.ElementType }[
 ];
 
 export default function ProgressPage() {
-  const { data, recentDays, weightTrend, addWeighIn, streakFor } = useApp();
+  const { data, recentDays, weightTrend, addWeighIn, streakFor, applyStreakFreeze, addProgressPhoto, removeProgressPhoto } = useApp();
   const profile = data.profile!;
   const trend = weightTrend();
   const [weighOpen, setWeighOpen] = useState(false);
   const [weight, setWeight] = useState("");
   const [note, setNote] = useState("");
+
+  // Streaks at risk: active (>1) but not updated since the day before yesterday.
+  const atRisk = data.streaks.filter((s) => s.currentCount > 1 && s.lastUpdatedDate != null && s.lastUpdatedDate <= daysAgo(2));
+
+  async function onProgressPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await fileToResizedDataUrl(file, 640, 0.75);
+    addProgressPhoto(url, trend.latestWeight, null);
+  }
+
+  const mealPhotos = data.foodLogs.filter((l) => l.imageUrl).slice(-24).reverse();
 
   const days = useMemo(() => recentDays(14).reverse(), [recentDays]);
   const weighData = useMemo(
@@ -98,6 +111,102 @@ export default function ProgressPage() {
           })}
         </div>
       </Card>
+
+      {/* Streak freezes */}
+      <Card padding={16}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Snowflake size={16} color="var(--fiber-500)" />
+            <CardTitle style={{ marginBottom: 0 }}>Streak freezes</CardTitle>
+          </div>
+          <Pill color="var(--fiber-500)">{data.streakFreezes} available</Pill>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "8px 0 0" }}>
+          A freeze protects a streak through one missed day, so a single off-day doesn&apos;t erase weeks of momentum.
+        </p>
+        {atRisk.length > 0 && data.streakFreezes > 0 && (
+          <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+            {atRisk.map((s) => (
+              <div key={s.id} className="if-glass" style={{ padding: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ flex: 1, fontSize: 13.5 }}>
+                  Your <strong>{s.currentCount}-day {s.streakType.replace(/_/g, " ")}</strong> streak is at risk.
+                </div>
+                <Button size="sm" variant="secondary" leadingIcon={<Snowflake size={13} />} onClick={() => applyStreakFreeze(s.streakType)}>
+                  Freeze it
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Progress photos */}
+      <Card padding={16}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ImageIcon size={16} color="var(--text-secondary)" />
+            <CardTitle style={{ marginBottom: 0 }}>Progress photos</CardTitle>
+          </div>
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              borderRadius: "var(--radius-pill)",
+              border: "1px solid var(--border-strong)",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <Camera size={14} /> Add photo
+            <input type="file" accept="image/*" capture="environment" onChange={onProgressPhoto} style={{ display: "none" }} />
+          </label>
+        </div>
+        {data.progressPhotos.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 14, color: "var(--text-muted)" }}>
+            No photos yet. Progress you can see beats a number on the scale on the weeks the scale lies.
+          </p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {data.progressPhotos.map((p) => (
+              <div key={p.id} style={{ position: "relative", aspectRatio: "3/4", borderRadius: "var(--radius-md)", overflow: "hidden", background: "var(--surface-inset)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "4px 6px", background: "linear-gradient(transparent, rgba(0,0,0,0.7))", fontSize: 10.5, color: "#fff" }}>
+                  {formatShort(p.logDate)}
+                  {p.weight != null && ` · ${Math.round(p.weight)}`}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeProgressPhoto(p.id)}
+                  aria-label="Delete photo"
+                  style={{ position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.5)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Meal photo journal */}
+      {mealPhotos.length > 0 && (
+        <Card padding={16}>
+          <CardTitle>Meal journal</CardTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+            {mealPhotos.map((l) => (
+              <div key={l.id} style={{ position: "relative", aspectRatio: "1", borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--surface-inset)" }} title={`${l.customName ?? "meal"} · ${formatShort(l.logDate)}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={l.imageUrl!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Challenges + badges */}
       <Card padding={16}>

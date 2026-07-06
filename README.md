@@ -87,6 +87,11 @@ Everything else on the roadmap runs today in the web app.
 
 ## Product notes
 
+- **Recipes.** Build a recipe from ingredients once (auto per-serving macros) and log a serving anytime, in the Log → Recipes tab.
+- **Macro cycling.** Optional training-day vs rest-day calorie targets (Profile → Macro cycling); the Today target shifts automatically by weekday.
+- **Streak freezes.** A small pool of freezes protects a streak through one missed day (Progress → Streak freezes) so one off-day doesn't erase weeks.
+- **Weekly review.** The coach generates an end-of-week report (adherence, averages, protein/water consistency, trend, wins, and the single most useful fix) — Coach → This week's review.
+- **Photo journal.** Per-meal photos plus a dedicated progress-photo timeline on Progress.
 - **Themes.** Basic (dark slate), Light, and Dark, switchable in Profile → Appearance; everything themes through CSS variables in `globals.css`.
 - **Customizable Today screen.** Users pick which cards/metrics show (rings, macros, coach, steps, calories burned, water, weight, plan, body-learning, fiber, sugar, sodium, net calories) in Profile.
 - **Rich food logging.** Category icons, tap-to-view nutrition label with grade + ingredients, per-item photo upload, favorites, reusable saved meals, 12 meal types, auto timestamps, exercise entry, daily notes, and water — all on the Log screen.

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Send, Sparkles, Trophy, X } from "lucide-react";
+import { CalendarCheck, Send, Sparkles, Trophy, X } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Chip, Pill } from "@/components/ui/Chip";
@@ -10,6 +10,7 @@ import { NavHeader } from "@/components/ui/NavHeader";
 import { useApp, uid } from "@/lib/store/AppStoreProvider";
 import { buildCoachContext } from "@/lib/coach/context";
 import { generateCoachReply, SUGGESTED_PROMPTS } from "@/lib/coach/engine";
+import { generateWeeklyReview } from "@/lib/coach/weekly-review";
 import type { Challenge, CoachMessage, CoachReply } from "@/types";
 
 const STYLE_NAMES = { encouraging: "Encouraging Coach", balanced: "Balanced Coach", no_excuses: "No Excuses Coach" };
@@ -27,11 +28,17 @@ export default function CoachPage() {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [pendingChallenge, setPendingChallenge] = useState<CoachReply["challenge"]>(null);
+  const [showReview, setShowReview] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const chat = data.coachMessages.filter((m) => m.source === "chat");
   const activeChallenges = data.challenges.filter((c) => c.status === "active");
   const trend = useMemo(() => weightTrend(), [weightTrend]);
+  const review = useMemo(() => {
+    const ctx = buildCoachContext(data, recentDays(7), trend);
+    return ctx ? generateWeeklyReview(ctx) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.foodLogs.length, data.weighIns.length, showReview]);
 
   // Seed an opening coach message once.
   useEffect(() => {
@@ -167,6 +174,41 @@ export default function CoachPage() {
         </Card>
       )}
 
+      {/* Weekly review */}
+      <div>
+        <Button variant="secondary" fullWidth leadingIcon={<CalendarCheck size={16} />} onClick={() => setShowReview((v) => !v)}>
+          {showReview ? "Hide this week's review" : "This week's review"}
+        </Button>
+      </div>
+      {showReview && review && (
+        <Card className="if-fade-up" style={{ background: "var(--grad-navy)" }}>
+          <CardTitle>Weekly review · {review.weekLabel}</CardTitle>
+          <strong style={{ fontSize: 16 }}>{review.headline}</strong>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "14px 0" }}>
+            <Stat label="Days logged" value={`${review.daysLogged}/7`} />
+            <Stat label="Avg calories" value={`${review.avgCalories.toLocaleString()}`} sub={`target ${review.targetCalories.toLocaleString()}`} />
+            <Stat label="Protein" value={`${review.proteinConsistencyPct}%`} sub="of days on target" />
+            <Stat label="Water" value={`${review.waterConsistencyPct}%`} sub="of days on target" />
+          </div>
+          {review.weightChangeLbs != null && trend.entries >= 3 && (
+            <div style={{ fontSize: 13.5, color: "var(--text-secondary)", marginBottom: 12 }}>
+              Weight trend: {review.weightChangeLbs > 0 ? "+" : ""}
+              {review.weightChangeLbs.toFixed(1)} lb/week
+            </div>
+          )}
+          <div style={{ marginBottom: 12 }}>
+            <div className="if-overline" style={{ color: "var(--forest-400)", marginBottom: 6 }}>Wins</div>
+            {review.wins.map((w) => (
+              <div key={w} style={{ fontSize: 13.5, color: "var(--text-secondary)", marginBottom: 3 }}>• {w}</div>
+            ))}
+          </div>
+          <div className="if-glass" style={{ padding: 12 }}>
+            <div className="if-overline" style={{ color: "var(--gold-500)", marginBottom: 6 }}>One fix for next week</div>
+            <p style={{ margin: 0, fontSize: 14 }}>{review.oneFix}</p>
+          </div>
+        </Card>
+      )}
+
       {/* Chat */}
       <Card padding={0} style={{ display: "flex", flexDirection: "column", height: "56dvh", minHeight: 380 }}>
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -238,6 +280,16 @@ export default function CoachPage() {
       <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", margin: 0 }}>
         AI coaching can make mistakes. Review recommendations carefully and use your judgment.
       </p>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="if-glass" style={{ padding: 12 }}>
+      <div className="if-overline" style={{ color: "var(--text-muted)", marginBottom: 4 }}>{label}</div>
+      <div className="if-num" style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 24 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{sub}</div>}
     </div>
   );
 }

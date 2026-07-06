@@ -18,6 +18,8 @@ import type {
   MealPlan,
   MotivationProfile,
   PlannedMeal,
+  ProgressPhoto,
+  Recipe,
   Recommendation,
   Reminder,
   SavedMeal,
@@ -79,6 +81,9 @@ export interface AppData {
   savedMeals: SavedMeal[];
   reminders: Reminder[];
   favoriteFoodIds: string[];
+  recipes: Recipe[];
+  progressPhotos: ProgressPhoto[];
+  streakFreezes: number;
 }
 
 const EMPTY_DATA: AppData = {
@@ -106,6 +111,9 @@ const EMPTY_DATA: AppData = {
   savedMeals: [],
   reminders: [],
   favoriteFoodIds: [],
+  recipes: [],
+  progressPhotos: [],
+  streakFreezes: 2,
 };
 
 export const uid = () =>
@@ -149,6 +157,12 @@ interface AppStore {
   setDashboardWidgets(widgets: DashboardWidget[]): void;
   markReminderRead(id: string): void;
   refreshReminders(): void;
+  saveRecipe(recipe: Omit<Recipe, "id" | "userId">): void;
+  removeRecipe(id: string): void;
+  logRecipe(recipe: Recipe, servings: number, date: string, mealType: import("@/types").MealType): void;
+  addProgressPhoto(imageUrl: string, weight: number | null, note: string | null, date?: string): void;
+  removeProgressPhoto(id: string): void;
+  applyStreakFreeze(type: StreakType): void;
 }
 
 /** logFood accepts an entry without server-managed fields; loggedAt/imageUrl are optional. */
@@ -223,7 +237,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
             timestampsEnabled: p.timestampsEnabled ?? true,
             weighInSchedule: p.weighInSchedule ?? { enabled: false, days: [1], time: "07:00" },
             photoUrl: p.photoUrl ?? null,
+            macroCycling: p.macroCycling ?? { enabled: false, trainingDays: [1, 3, 5], trainingCalorieDelta: 250, restCalorieDelta: -150 },
+            hydrationReminders: p.hydrationReminders ?? true,
           };
+          if (parsed.streakFreezes == null) parsed.streakFreezes = 2;
           applyTheme(parsed.profile.theme);
         }
         return parsed;
@@ -384,6 +401,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
               exerciseAddsToBudget: true,
               timestampsEnabled: true,
               weighInSchedule: { enabled: false, days: [1], time: "07:00" },
+              macroCycling: { enabled: false, trainingDays: [1, 3, 5], trainingCalorieDelta: 250, restCalorieDelta: -150 },
+              hydrationReminders: true,
               createdAt: now,
               updatedAt: now,
               ...p,
@@ -641,6 +660,73 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     });
   }, [update]);
 
+  /* ---- recipes / progress photos / streak freezes ---- */
+
+  const saveRecipe = useCallback(
+    (recipe: Omit<Recipe, "id" | "userId">) =>
+      update((d) => ({ ...d, recipes: [...d.recipes, { ...recipe, id: uid(), userId: userRef.current?.id ?? "" }] })),
+    [update],
+  );
+
+  const removeRecipe = useCallback(
+    (id: string) => update((d) => ({ ...d, recipes: d.recipes.filter((r) => r.id !== id) })),
+    [update],
+  );
+
+  const logRecipe = useCallback(
+    (recipe: Recipe, servings: number, date: string, mealType: import("@/types").MealType) => {
+      logFood({
+        logDate: date,
+        mealType,
+        foodItemId: null,
+        customName: `${recipe.title} (${servings} serving${servings === 1 ? "" : "s"})`,
+        quantity: servings,
+        calories: recipe.caloriesPerServing * servings,
+        protein: recipe.proteinPerServing * servings,
+        carbs: recipe.carbsPerServing * servings,
+        fat: recipe.fatPerServing * servings,
+        fiber: 0,
+        sugar: 0,
+        sodium: null,
+        foodQualityScore: null,
+        foodQualityLabel: null,
+        notes: null,
+      });
+    },
+    [logFood],
+  );
+
+  const addProgressPhoto = useCallback(
+    (imageUrl: string, weight: number | null, note: string | null, date?: string) =>
+      update((d) => ({
+        ...d,
+        progressPhotos: [
+          { id: uid(), userId: userRef.current?.id ?? "", logDate: date ?? todayStr(), imageUrl, weight, note, createdAt: new Date().toISOString() },
+          ...d.progressPhotos,
+        ],
+      })),
+    [update],
+  );
+
+  const removeProgressPhoto = useCallback(
+    (id: string) => update((d) => ({ ...d, progressPhotos: d.progressPhotos.filter((p) => p.id !== id) })),
+    [update],
+  );
+
+  /** Spend a freeze to bridge a one-day gap so the streak survives (#streak recovery). */
+  const applyStreakFreeze = useCallback(
+    (type: StreakType) =>
+      update((d) => {
+        if (d.streakFreezes <= 0) return d;
+        return {
+          ...d,
+          streakFreezes: d.streakFreezes - 1,
+          streaks: d.streaks.map((s) => (s.streakType === type ? { ...s, lastUpdatedDate: daysAgo(1) } : s)),
+        };
+      }),
+    [update],
+  );
+
   /* ---- selectors ---- */
 
   const todayStats = useCallback(
@@ -705,8 +791,14 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       setDashboardWidgets,
       markReminderRead,
       refreshReminders,
+      saveRecipe,
+      removeRecipe,
+      logRecipe,
+      addProgressPhoto,
+      removeProgressPhoto,
+      applyStreakFreeze,
     }),
-    [loading, user, data, supabaseMode, signUp, signIn, signOut, update, saveProfile, logFood, removeFoodLog, addWater, addWeighIn, todayStats, recentDays, weightTrend, streakFor, awardBadge, logExercise, removeExercise, setSteps, saveNote, noteFor, saveMeal, removeSavedMeal, logSavedMeal, toggleFavorite, isFavorite, setTheme, setDashboardWidgets, markReminderRead, refreshReminders],
+    [loading, user, data, supabaseMode, signUp, signIn, signOut, update, saveProfile, logFood, removeFoodLog, addWater, addWeighIn, todayStats, recentDays, weightTrend, streakFor, awardBadge, logExercise, removeExercise, setSteps, saveNote, noteFor, saveMeal, removeSavedMeal, logSavedMeal, toggleFavorite, isFavorite, setTheme, setDashboardWidgets, markReminderRead, refreshReminders, saveRecipe, removeRecipe, logRecipe, addProgressPhoto, removeProgressPhoto, applyStreakFreeze],
   );
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
@@ -725,7 +817,13 @@ function dayStatsFor(data: AppData, date: string): DayStats {
   const steps = data.stepLogs.filter((s) => s.logDate === date).reduce((m, s) => Math.max(m, s.steps), 0);
   const caloriesBurned = Math.round(data.exerciseLogs.filter((e) => e.logDate === date).reduce((s, e) => s + e.caloriesBurned, 0));
   const t = data.targets;
-  const targetCalories = t?.calories ?? 2000;
+  let targetCalories = t?.calories ?? 2000;
+  // Macro cycling: shift the day's target on training vs rest days.
+  const mc = data.profile?.macroCycling;
+  if (mc?.enabled) {
+    const dow = new Date(date + "T12:00:00").getDay();
+    targetCalories += mc.trainingDays.includes(dow) ? mc.trainingCalorieDelta : mc.restCalorieDelta;
+  }
   const exerciseAdds = data.profile?.exerciseAddsToBudget ?? false;
   return {
     date,
@@ -794,12 +892,22 @@ function generateReminders(d: AppData): Omit<Reminder, "id" | "userId" | "create
     });
   }
 
-  // Water behind in the afternoon.
-  if (hour >= 15 && water < d.targets.waterOz * 0.5) {
+  // Water behind in the afternoon (if hydration reminders are on).
+  if (d.profile.hydrationReminders !== false && hour >= 15 && water < d.targets.waterOz * 0.5) {
     out.push({
       kind: "water_nudge",
       message: `Hydration's lagging — ${water}/${d.targets.waterOz} oz. Knock out a glass now and tap +16.`,
       actionHref: "/dashboard",
+    });
+  }
+
+  // Haven't weighed in for a while (independent of scheduled days).
+  const lastWeigh = [...d.weighIns].sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
+  if (lastWeigh && lastWeigh.logDate <= addDays(today, -5)) {
+    out.push({
+      kind: "weigh_in",
+      message: `It's been since ${lastWeigh.logDate} since your last weigh-in. The trend needs fresh data — step on today.`,
+      actionHref: "/progress",
     });
   }
 

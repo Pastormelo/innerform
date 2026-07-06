@@ -201,7 +201,58 @@ export default function ProfilePage() {
             checked={profile.timestampsEnabled}
             onChange={(v) => saveProfile({ timestampsEnabled: v })}
           />
+          <Switch label="Hydration reminders" checked={profile.hydrationReminders} onChange={(v) => saveProfile({ hydrationReminders: v })} />
         </div>
+      </Card>
+
+      {/* Macro cycling */}
+      <Card padding={16}>
+        <CardTitle>Macro cycling</CardTitle>
+        <Switch
+          label="Different targets on training vs rest days"
+          checked={profile.macroCycling.enabled}
+          onChange={(v) => saveProfile({ macroCycling: { ...profile.macroCycling, enabled: v } })}
+        />
+        {profile.macroCycling.enabled && (
+          <div style={{ marginTop: 14, display: "grid", gap: 14 }}>
+            <div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>Training days</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {DAY_NAMES.map((d, i) => (
+                  <Chip
+                    key={d}
+                    label={d}
+                    size="sm"
+                    selected={profile.macroCycling.trainingDays.includes(i)}
+                    onClick={() => {
+                      const td = profile.macroCycling.trainingDays.includes(i)
+                        ? profile.macroCycling.trainingDays.filter((x) => x !== i)
+                        : [...profile.macroCycling.trainingDays, i].sort();
+                      saveProfile({ macroCycling: { ...profile.macroCycling, trainingDays: td } });
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Input
+                label="Training day +kcal"
+                type="number"
+                defaultValue={profile.macroCycling.trainingCalorieDelta}
+                onBlur={(e) => saveProfile({ macroCycling: { ...profile.macroCycling, trainingCalorieDelta: Number(e.target.value) || 0 } })}
+              />
+              <Input
+                label="Rest day +/− kcal"
+                type="number"
+                defaultValue={profile.macroCycling.restCalorieDelta}
+                onBlur={(e) => saveProfile({ macroCycling: { ...profile.macroCycling, restCalorieDelta: Number(e.target.value) || 0 } })}
+              />
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+              Your Today target shifts automatically by day. Training days carry more calories (mostly carbs); rest days pull back.
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* Scheduled weigh-ins (#5) */}
