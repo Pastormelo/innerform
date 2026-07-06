@@ -93,6 +93,7 @@ Everything else on the roadmap runs today in the web app.
 
 ## Product notes
 
+- **Accountability sharing (social).** In Profile → Accountability, turn on sharing to get a private link (`/shared/<slug>`). A coach, spouse, or friend opens it — no login — and sees a **read-only** snapshot (streaks, weight trend, weekly consistency) and can send an encouragement that lands in your app. They never see your full diary. Backed by `shared_progress` + `partner_notes` (RLS: owner manages; anyone may read an *enabled* share and send a note; only the owner reads their notes). Hardening options for later: gate reads behind a security-definer RPC and rate-limit note inserts.
 - **Editable serving size.** When logging a food you can type a serving count *or* a weight (g/oz/lb) with unit chips; calories and macros update live (MyNetDiary-style).
 - **Food label.** Tap any food for a full nutrition-facts panel: goal-aware letter grade ("cutting C" / "gaining B"), a toggleable % Daily Value column, Net Carbs, Added Sugars, Cholesterol, Calcium, Iron, and ingredients.
 - **Custom meal types.** Beyond the 12 built-ins, users add their own meal types (name + icon) and reorder them in Profile → Meal types; they appear across logging.

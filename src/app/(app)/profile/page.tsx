@@ -12,6 +12,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
 import { NavHeader } from "@/components/ui/NavHeader";
 import { DynIcon } from "@/components/ui/DynIcon";
+import { AccountabilityCard } from "@/components/social/AccountabilityCard";
 import { useApp } from "@/lib/store/AppStoreProvider";
 import { applyTheme, THEME_LABELS } from "@/lib/theme";
 import { formatHeight, formatWeight } from "@/lib/nutrition/calculations";
@@ -432,6 +433,9 @@ export default function ProfilePage() {
           })}
         </div>
       </Card>
+
+      {/* Accountability sharing (social) */}
+      <AccountabilityCard />
 
       {/* Health integrations */}
       <Card padding={16}>

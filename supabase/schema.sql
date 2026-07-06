@@ -428,6 +428,28 @@ create table if not exists app_state (
   updated_at timestamptz not null default now()
 );
 
+-- ---------- accountability sharing (social v1) ----------
+-- A read-only progress snapshot the user shares by link, plus
+-- encouragements a viewer can send back into the owner's app.
+create table if not exists shared_progress (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  slug text unique not null,
+  display_name text,
+  enabled boolean not null default true,
+  stats jsonb not null default '{}',
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists partner_notes (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  from_name text,
+  body text not null,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists partner_notes_owner on partner_notes (owner_id, created_at);
+
 -- ============================================================
 -- Row Level Security
 -- ============================================================
@@ -458,6 +480,8 @@ alter table favorite_foods enable row level security;
 alter table reminders enable row level security;
 alter table progress_photos enable row level security;
 alter table app_state enable row level security;
+alter table shared_progress enable row level security;
+alter table partner_notes enable row level security;
 
 -- user_profiles keys off auth_user_id
 create policy "own profile" on user_profiles for all
@@ -486,6 +510,16 @@ create policy "own rows" on favorite_foods for all using (auth.uid() = user_id) 
 create policy "own rows" on reminders for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own rows" on progress_photos for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own state" on app_state for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- shared_progress: owner manages their row; anyone (incl. logged-out viewers)
+-- may read a row that is enabled (the user opted into sharing it).
+create policy "owner manages share" on shared_progress for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "public reads enabled share" on shared_progress for select using (enabled = true);
+
+-- partner_notes: anyone can send an encouragement to an owner; only the owner reads/updates theirs.
+create policy "owner reads notes" on partner_notes for select using (auth.uid() = owner_id);
+create policy "owner updates notes" on partner_notes for update using (auth.uid() = owner_id);
+create policy "anyone sends a note" on partner_notes for insert with check (true);
 
 -- recipes: own rows OR shared seed recipes (user_id null → readable by all)
 create policy "read shared or own recipes" on recipes for select using (user_id is null or auth.uid() = user_id);
