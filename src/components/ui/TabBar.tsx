@@ -42,17 +42,17 @@ export function TabBar() {
           <Link
             key={href}
             href={href}
+            className="if-tab"
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               gap: 3,
-              padding: "6px 0",
+              padding: "8px 0",
               textDecoration: "none",
               color: active ? "var(--forest-500)" : "var(--text-muted)",
-              transition: "color var(--dur-fast) var(--ease-out)",
               WebkitTapHighlightColor: "transparent",
-              borderRadius: "var(--radius-sm)",
+              borderRadius: "var(--radius-md)",
             }}
           >
             <Icon size={23} strokeWidth={active ? 2.4 : 2} />
