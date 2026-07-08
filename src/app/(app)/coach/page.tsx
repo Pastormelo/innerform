@@ -305,8 +305,10 @@ function Bubble({ msg }: { msg: CoachMessage }) {
           borderBottomLeftRadius: isCoach ? 6 : undefined,
           borderBottomRightRadius: isCoach ? undefined : 6,
           background: isCoach ? "var(--surface-card-2)" : "var(--forest-600)",
-          color: "var(--text-primary)",
-          fontSize: 14.5,
+          // User bubble sits on dark-green in every theme, so keep its text white.
+          color: isCoach ? "var(--text-primary)" : "#FFFFFF",
+          fontSize: 16,
+          lineHeight: 1.5,
           whiteSpace: "pre-line",
           border: "1px solid var(--border-subtle)",
         }}

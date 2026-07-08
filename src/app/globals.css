@@ -133,10 +133,10 @@
   --fs-h2: 28px;
   --fs-h3: 22px;
   --fs-h4: 18px;
-  --fs-body-lg:  18px;
-  --fs-body:     16px;
-  --fs-body-sm:  14px;
-  --fs-caption:  13px;
+  --fs-body-lg:  19px;
+  --fs-body:     17px;
+  --fs-body-sm:  15px;
+  --fs-caption:  13.5px;
   --fs-overline: 12px;
 
   --lh-tight:   0.95;
@@ -257,8 +257,10 @@
   --border-subtle: rgba(16,24,40,0.08);
   --border-strong: rgba(16,24,40,0.16);
 
-  --forest-500: #1F5E4A;
-  --accent: #1F5E4A;
+  /* Darker greens so text/links read on white (the light 400 washed out) */
+  --forest-500: #1B7350;
+  --forest-400: #1F8A5E;
+  --accent: #1B7350;
 
   --grad-hero: radial-gradient(120% 80% at 50% 0%, rgba(31,94,74,0.10) 0%, rgba(247,248,249,0) 55%), linear-gradient(180deg, #FFFFFF 0%, #F7F8F9 100%);
   --grad-navy: linear-gradient(135deg, #E9EEF2 0%, #D5DDE4 100%);
@@ -358,16 +360,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 /* Bottom tab-bar item: Apple-glass hover highlight + spring press */
 .if-tab {
   position: relative;
-  transition: background var(--dur-base) var(--ease-out), transform var(--dur-fast) var(--ease-spring), color var(--dur-fast) var(--ease-out);
+  transition: background var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-spring),
+    box-shadow var(--dur-base) var(--ease-out);
 }
+.if-tab > * { transition: transform var(--dur-base) var(--ease-spring); }
 .if-tab:hover {
   background: var(--surface-card-2);
-  transform: translateY(-2px);
+  transform: translateY(-5px) scale(1.06);
+  box-shadow: 0 10px 24px rgba(8, 10, 14, 0.32), var(--glass-highlight);
 }
-.if-tab:active { transform: translateY(0) scale(0.92); }
+.if-tab:hover > * { transform: translateY(-1px); }
+.if-tab:active { transform: translateY(-1px) scale(0.94); }
 /* On touch devices, don't leave a stuck hover highlight after a tap */
 @media (hover: none) {
-  .if-tab:hover { background: transparent; transform: none; }
+  .if-tab:hover { background: transparent; transform: none; box-shadow: none; }
+  .if-tab:hover > * { transform: none; }
 }
 
 /* ---- Animations ---- */

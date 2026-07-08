@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Plus, ShoppingCart, Trash2, Wand2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, ShoppingCart, Trash2, Wand2 } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Chip, Pill } from "@/components/ui/Chip";
@@ -49,7 +49,7 @@ const CATEGORY_LABELS: Record<GroceryCategory, string> = {
 };
 
 export default function MealPlanPage() {
-  const { data, update } = useApp();
+  const { data, update, logFood } = useApp();
   const profile = data.profile!;
   const dir = goalDirection(profile.primaryGoal);
   const [view, setView] = useState<"plan" | "grocery">("plan");
@@ -60,6 +60,28 @@ export default function MealPlanPage() {
   const [generating, setGenerating] = useState(false);
   const [mode, setMode] = useState<PlanMode>("auto");
   const [customItem, setCustomItem] = useState("");
+  const [editMeal, setEditMeal] = useState<PlannedMeal | null>(null);
+
+  function logPlanned(m: PlannedMeal, markDone = true) {
+    logFood({
+      logDate: m.plannedDate,
+      mealType: m.mealType,
+      foodItemId: null,
+      customName: m.title,
+      quantity: 1,
+      calories: m.calories,
+      protein: m.protein,
+      carbs: m.carbs,
+      fat: m.fat,
+      fiber: 0,
+      sugar: 0,
+      sodium: null,
+      foodQualityScore: null,
+      foodQualityLabel: null,
+      notes: "From meal plan",
+    });
+    if (markDone) update((d) => ({ ...d, plannedMeals: d.plannedMeals.map((x) => (x.id === m.id ? { ...x, completed: true } : x)) }));
+  }
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(wkStart, i));
   const dayMeals = data.plannedMeals
@@ -289,12 +311,28 @@ export default function MealPlanPage() {
                   </button>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="if-overline" style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 2 }}>
-                      {m.mealType.replace("_", " ")}
+                      {m.mealType.replace(/_/g, " ")}
                     </div>
-                    <div style={{ fontSize: 14.5, fontWeight: 600, textDecoration: m.completed ? "line-through" : "none" }}>{m.title}</div>
+                    {/* Tap the title to edit the meal */}
+                    <button
+                      type="button"
+                      onClick={() => setEditMeal(m)}
+                      style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text-primary)", textAlign: "left" }}
+                    >
+                      <span style={{ fontSize: 15, fontWeight: 600, textDecoration: m.completed ? "line-through" : "none" }}>{m.title}</span>
+                      <Pencil size={12} color="var(--text-muted)" />
+                    </button>
                     {m.description && <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{m.description}</div>}
                     <div className="if-num" style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
                       {m.calories} kcal · P{m.protein} C{m.carbs} F{m.fat}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <Button size="sm" onClick={() => logPlanned(m)} leadingIcon={<Plus size={13} />}>
+                        Log now
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditMeal(m)}>
+                        Edit
+                      </Button>
                     </div>
                   </div>
                   <button
@@ -363,45 +401,12 @@ export default function MealPlanPage() {
                     <CardTitle>{CATEGORY_LABELS[cat]}</CardTitle>
                     <div style={{ display: "grid", gap: 4 }}>
                       {items.map((i) => (
-                        <button
+                        <GroceryRow
                           key={i.id}
-                          type="button"
-                          onClick={() => update((d) => ({ ...d, groceryItems: d.groceryItems.map((x) => (x.id === i.id ? { ...x, checked: !x.checked } : x)) }))}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            padding: "8px 4px",
-                            background: "none",
-                            border: "none",
-                            borderTop: "1px solid var(--border-subtle)",
-                            color: "var(--text-primary)",
-                            cursor: "pointer",
-                            textAlign: "left",
-                            WebkitTapHighlightColor: "transparent",
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: 6,
-                              flexShrink: 0,
-                              border: `1.5px solid ${i.checked ? "var(--forest-500)" : "var(--border-strong)"}`,
-                              background: i.checked ? "var(--forest-500)" : "transparent",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "var(--ink-950)",
-                            }}
-                          >
-                            {i.checked && <Check size={13} strokeWidth={3} />}
-                          </span>
-                          <span style={{ flex: 1, fontSize: 14.5, textDecoration: i.checked ? "line-through" : "none", color: i.checked ? "var(--text-muted)" : "var(--text-primary)" }}>
-                            {i.name}
-                          </span>
-                          {i.quantity && <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{i.quantity}</span>}
-                        </button>
+                          item={i}
+                          onToggle={() => update((d) => ({ ...d, groceryItems: d.groceryItems.map((x) => (x.id === i.id ? { ...x, checked: !x.checked } : x)) }))}
+                          onDelete={() => update((d) => ({ ...d, groceryItems: d.groceryItems.filter((x) => x.id !== i.id) }))}
+                        />
                       ))}
                     </div>
                   </Card>
@@ -442,6 +447,25 @@ export default function MealPlanPage() {
             ))}
         </div>
       </Modal>
+
+      {/* Edit a planned meal + log from here */}
+      <PlannedMealEditor
+        key={editMeal?.id ?? "no-edit"}
+        meal={editMeal}
+        onClose={() => setEditMeal(null)}
+        onSave={(patch) => {
+          if (!editMeal) return;
+          update((d) => ({ ...d, plannedMeals: d.plannedMeals.map((x) => (x.id === editMeal.id ? { ...x, ...patch } : x)) }));
+          setEditMeal(null);
+        }}
+        onLog={(patch) => {
+          if (!editMeal) return;
+          const merged = { ...editMeal, ...patch };
+          update((d) => ({ ...d, plannedMeals: d.plannedMeals.map((x) => (x.id === editMeal.id ? merged : x)) }));
+          logPlanned(merged);
+          setEditMeal(null);
+        }}
+      />
 
       <GeneratingOverlay
         key={generating ? "gen-on" : "gen-off"}
@@ -497,5 +521,141 @@ function WeekBtn({ children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonEle
     >
       {children}
     </button>
+  );
+}
+
+/* ============ Edit a planned meal (rename + macros) and log it ============ */
+
+function PlannedMealEditor({
+  meal,
+  onClose,
+  onSave,
+  onLog,
+}: {
+  meal: PlannedMeal | null;
+  onClose: () => void;
+  onSave: (patch: Partial<PlannedMeal>) => void;
+  onLog: (patch: Partial<PlannedMeal>) => void;
+}) {
+  const [title, setTitle] = useState(meal?.title ?? "");
+  const [description, setDescription] = useState(meal?.description ?? "");
+  const [calories, setCalories] = useState(String(meal?.calories ?? ""));
+  const [protein, setProtein] = useState(String(meal?.protein ?? ""));
+  const [carbs, setCarbs] = useState(String(meal?.carbs ?? ""));
+  const [fat, setFat] = useState(String(meal?.fat ?? ""));
+
+  if (!meal) return null;
+
+  const patch = (): Partial<PlannedMeal> => ({
+    title: title.trim() || meal.title,
+    description: description.trim() || null,
+    calories: Number(calories) || 0,
+    protein: Number(protein) || 0,
+    carbs: Number(carbs) || 0,
+    fat: Number(fat) || 0,
+  });
+
+  return (
+    <Modal open onClose={onClose} title="Edit meal">
+      <div style={{ display: "grid", gap: 12 }}>
+        <Input label="Meal name" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Input label="Description" optional value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Input label="Calories" type="number" value={calories} onChange={(e) => setCalories(e.target.value)} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <Input label="Protein" type="number" value={protein} onChange={(e) => setProtein(e.target.value)} />
+          <Input label="Carbs" type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
+          <Input label="Fat" type="number" value={fat} onChange={(e) => setFat(e.target.value)} />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Button variant="outline" onClick={() => onSave(patch())}>
+            Save changes
+          </Button>
+          <Button fullWidth onClick={() => onLog(patch())} leadingIcon={<Plus size={15} />}>
+            Save &amp; log it
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ============ Grocery row: tap to check, swipe-left or trash to delete ============ */
+
+function GroceryRow({ item, onToggle, onDelete }: { item: GroceryItem; onToggle: () => void; onDelete: () => void }) {
+  const [dx, setDx] = React.useState(0);
+  const [dragging, setDragging] = React.useState(false);
+  const startX = React.useRef(0);
+
+  return (
+    <div style={{ position: "relative", overflow: "hidden", borderTop: "1px solid var(--border-subtle)" }}>
+      {/* delete zone revealed behind the row on swipe */}
+      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 14, background: "var(--danger-500)" }}>
+        <Trash2 size={16} color="#fff" />
+      </div>
+      <div
+        onTouchStart={(e) => {
+          startX.current = e.touches[0].clientX;
+          setDragging(true);
+        }}
+        onTouchMove={(e) => {
+          if (!dragging) return;
+          const delta = e.touches[0].clientX - startX.current;
+          setDx(Math.min(0, Math.max(-88, delta)));
+        }}
+        onTouchEnd={() => {
+          setDragging(false);
+          if (dx <= -56) onDelete();
+          else setDx(0);
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 4px",
+          background: "var(--surface-app)",
+          transform: `translateX(${dx}px)`,
+          transition: dragging ? "none" : "transform var(--dur-base) var(--ease-out)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label="Toggle purchased"
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 6,
+            flexShrink: 0,
+            border: `1.5px solid ${item.checked ? "var(--forest-500)" : "var(--border-strong)"}`,
+            background: item.checked ? "var(--forest-500)" : "transparent",
+            color: "var(--ink-950)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+          }}
+        >
+          {item.checked && <Check size={13} strokeWidth={3} />}
+        </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          style={{ flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+        >
+          <span style={{ fontSize: 14.5, textDecoration: item.checked ? "line-through" : "none", color: item.checked ? "var(--text-muted)" : "var(--text-primary)" }}>
+            {item.name}
+          </span>
+          {item.quantity && <span style={{ fontSize: 12.5, color: "var(--text-muted)", marginLeft: 8 }}>{item.quantity}</span>}
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label="Delete item"
+          style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4, flexShrink: 0 }}
+        >
+          <Trash2 size={15} />
+        </button>
+      </div>
+    </div>
   );
 }

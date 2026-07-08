@@ -48,6 +48,8 @@ export default function LogPage() {
   const [addOpen, setAddOpen] = useState<MealTypeKey | null>(null);
   const [exerciseOpen, setExerciseOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [saveMealTarget, setSaveMealTarget] = useState<MealTypeKey | null>(null);
+  const [saveMealTitle, setSaveMealTitle] = useState("");
 
   const dayLogs = data.foodLogs.filter((l) => l.logDate === date);
   const dayExercise = data.exerciseLogs.filter((e) => e.logDate === date);
@@ -87,11 +89,11 @@ export default function LogPage() {
     }
   }
 
-  function saveMealFromSection(mt: MealTypeKey) {
+  function saveMealFromSection(mt: MealTypeKey, title: string) {
     const items = dayLogs.filter((l) => l.mealType === mt);
     if (!items.length) return;
     saveMeal({
-      name: `${mealTypeLabel(mt, custom)} — ${formatShort(date)}`,
+      name: title.trim() || `${mealTypeLabel(mt, custom)} — ${formatShort(date)}`,
       mealType: mt,
       items: items.map((l) => ({
         foodItemId: l.foodItemId,
@@ -191,7 +193,14 @@ export default function LogPage() {
                 <span className="if-num" style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
                   {Math.round(logs.reduce((s, l) => s + l.calories, 0))} kcal
                 </span>
-                <IconBtn onClick={() => saveMealFromSection(mt)} aria-label="Save as meal" title="Save as reusable meal">
+                <IconBtn
+                  onClick={() => {
+                    setSaveMealTitle(`${mealTypeLabel(mt, custom)} — ${formatShort(date)}`);
+                    setSaveMealTarget(mt);
+                  }}
+                  aria-label="Save as meal"
+                  title="Save as a reusable meal"
+                >
                   <Bookmark size={15} />
                 </IconBtn>
                 <IconBtn onClick={() => setAddOpen(mt)} aria-label={`Add to ${mealTypeLabel(mt, custom)}`}>
@@ -292,6 +301,26 @@ export default function LogPage() {
       <AddFoodModal key={addOpen ?? "closed"} open={addOpen !== null} mealType={addOpen ?? "snack"} date={date} dir={dir} custom={custom} onClose={() => setAddOpen(null)} />
       <ExerciseModal key={exerciseOpen ? "ex-open" : "ex-closed"} open={exerciseOpen} date={date} weightLbs={profile.currentWeight ?? 170} onClose={() => setExerciseOpen(false)} onAdd={logExercise} />
       <NoteModal key={noteOpen ? `note-${note?.updatedAt ?? "open"}` : "note-closed"} open={noteOpen} initial={note?.body ?? ""} onClose={() => setNoteOpen(false)} onSave={(body) => saveNote(body, date)} />
+
+      {/* Name a saved meal */}
+      <Modal open={saveMealTarget !== null} onClose={() => setSaveMealTarget(null)} title="Save as a meal">
+        <div style={{ display: "grid", gap: 14 }}>
+          <p style={{ margin: 0, fontSize: 13.5, color: "var(--text-secondary)" }}>
+            Name this meal so you can log the whole thing again in one tap from the Saved tab.
+          </p>
+          <Input label="Meal name" value={saveMealTitle} onChange={(e) => setSaveMealTitle(e.target.value)} placeholder="e.g. My go-to breakfast" />
+          <Button
+            fullWidth
+            disabled={!saveMealTarget || !dayLogs.some((l) => l.mealType === saveMealTarget)}
+            onClick={() => {
+              if (saveMealTarget) saveMealFromSection(saveMealTarget, saveMealTitle);
+              setSaveMealTarget(null);
+            }}
+          >
+            Save meal
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -402,8 +431,8 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, custom, onCl
     logFood({
       logDate: date,
       mealType,
-      foodItemId: selected.source === "open_food_facts" ? null : selected.id,
-      customName: selected.source === "open_food_facts" ? selected.name : null,
+      foodItemId: selected.source === "seed" ? selected.id : null,
+      customName: selected.source === "seed" ? null : selected.name,
       quantity: qty,
       calories: selected.calories * qty,
       protein: selected.protein * qty,
@@ -491,7 +520,7 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, custom, onCl
 
               {searching && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: 13 }}>
-                  <InlineSpinner size={16} /> Searching Open Food Facts…
+                  <InlineSpinner size={16} /> Searching USDA FoodData Central…
                 </div>
               )}
 
@@ -540,9 +569,9 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, custom, onCl
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <label style={photoBtn}>
                   <Camera size={15} /> {photo ? "Photo added" : "Add photo"}
-                  <input type="file" accept="image/*" capture="environment" onChange={onPhoto} style={{ display: "none" }} />
+                  <input type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
                 </label>
-                {selected.source !== "open_food_facts" && (
+                {selected.source === "seed" && (
                   <button type="button" onClick={() => toggleFavorite(selected.id)} style={{ ...photoBtn, color: isFavorite(selected.id) ? "var(--gold-500)" : "var(--text-secondary)" }}>
                     <Star size={15} fill={isFavorite(selected.id) ? "var(--gold-500)" : "none"} /> {isFavorite(selected.id) ? "Favorited" : "Favorite"}
                   </button>
@@ -571,7 +600,7 @@ function AddFoodModal({ open, mealType: initialMealType, date, dir, custom, onCl
               </div>
               <label style={photoBtn}>
                 <Camera size={15} /> {photo ? "Photo added" : "Add photo"}
-                <input type="file" accept="image/*" capture="environment" onChange={onPhoto} style={{ display: "none" }} />
+                <input type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
               </label>
               <Button fullWidth onClick={saveManual} disabled={!mName.trim() || !Number(mCal)}>
                 Add to {mealTypeLabel(mealType, custom)}

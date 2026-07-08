@@ -1,4 +1,22 @@
-import type { CustomMealType, ExerciseType, MealType, MealTypeKey } from "@/types";
+import type { CustomMealType, DashboardWidget, ExerciseType, MealType, MealTypeKey } from "@/types";
+
+/** Human labels for the customizable Today-dashboard widgets (#17). */
+export const DASHBOARD_WIDGET_LABELS: Record<DashboardWidget, string> = {
+  rings: "Calorie & macro rings",
+  macros: "Macro bars",
+  coach: "Coach message",
+  water: "Water",
+  weight: "Weight",
+  steps: "Steps",
+  calories_burned: "Calories burned",
+  plan: "Today's plan",
+  body_learning: "Body learning insight",
+  fiber: "Fiber",
+  sugar: "Sugar",
+  sodium: "Sodium",
+  net_calories: "Net calories",
+};
+export const ALL_DASHBOARD_WIDGETS = Object.keys(DASHBOARD_WIDGET_LABELS) as DashboardWidget[];
 
 /* ============================================================
    Shared display constants — meal types (#21), exercise, and

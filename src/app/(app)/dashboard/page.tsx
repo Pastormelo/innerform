@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bell, CalendarRange, Droplet, Flame, Footprints, Sparkles, Scale, UtensilsCrossed, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bell, CalendarRange, Check, Droplet, Eye, EyeOff, Flame, Footprints, Pencil, Sparkles, Scale, UtensilsCrossed, X } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { RingStack } from "@/components/ui/ActivityRing";
 import { MacroBar, ProgressBar } from "@/components/ui/MacroBar";
@@ -18,6 +18,7 @@ import { dailyCoachMessage } from "@/lib/coach/engine";
 import { runBodyLearning } from "@/lib/body-learning/engine";
 import { goalDirection, formatWeight } from "@/lib/nutrition/calculations";
 import { todayStr } from "@/lib/dates";
+import { ALL_DASHBOARD_WIDGETS, DASHBOARD_WIDGET_LABELS } from "@/lib/constants";
 import type { DashboardWidget } from "@/types";
 
 const MODE_COLORS: Record<string, string> = {
@@ -29,13 +30,14 @@ const MODE_COLORS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { data, todayStats, recentDays, weightTrend, addWater, setSteps, streakFor, refreshReminders, markReminderRead } = useApp();
+  const { data, todayStats, recentDays, weightTrend, addWater, setSteps, streakFor, refreshReminders, markReminderRead, setDashboardWidgets } = useApp();
   const profile = data.profile!;
   const stats = todayStats();
   const t = data.targets;
   const dir = goalDirection(profile.primaryGoal);
   const trend = weightTrend();
   const [stepsOpen, setStepsOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
   // Generate in-app encouragement/nudges on open (#6).
   useEffect(() => {
@@ -131,7 +133,7 @@ export default function DashboardPage() {
           <CardTitle style={{ marginBottom: 0 }}>Coach</CardTitle>
           <Pill color={MODE_COLORS[coach.mode]}>{coach.mode}</Pill>
         </div>
-        <p style={{ margin: 0, fontSize: 15, whiteSpace: "pre-line" }}>{coach.message}</p>
+        <p style={{ margin: 0, fontSize: 16.5, lineHeight: 1.5, whiteSpace: "pre-line" }}>{coach.message}</p>
         {coach.suggestedAction && (
           <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
             <Sparkles size={15} color="var(--forest-400)" />
@@ -308,15 +310,101 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Customizable widgets (#17) */}
-      {widgets.map((w) => WIDGETS[w]).filter(Boolean)}
+      {/* Edit-this-page toggle (#17) */}
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <Button
+          size="sm"
+          variant={editMode ? "primary" : "ghost"}
+          leadingIcon={editMode ? <Check size={15} /> : <Pencil size={14} />}
+          onClick={() => setEditMode((v) => !v)}
+        >
+          {editMode ? "Done editing" : "Edit this page"}
+        </Button>
+      </div>
 
-      <Link href="/profile" style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", textDecoration: "none" }}>
-        Customize what shows here →
-      </Link>
+      {/* Customizable widgets (#17) */}
+      {editMode ? (
+        <WidgetEditor
+          shown={widgets}
+          onMove={(w, delta) => {
+            const arr = [...widgets];
+            const i = arr.indexOf(w);
+            const j = i + delta;
+            if (i < 0 || j < 0 || j >= arr.length) return;
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+            setDashboardWidgets(arr);
+          }}
+          onHide={(w) => setDashboardWidgets(widgets.filter((x) => x !== w))}
+          onShow={(w) => setDashboardWidgets([...widgets, w])}
+        />
+      ) : (
+        widgets.map((w) => WIDGETS[w]).filter(Boolean)
+      )}
 
       <StepsModal key={stepsOpen ? "steps-open" : "steps-closed"} open={stepsOpen} current={stats.steps} onClose={() => setStepsOpen(false)} onSave={(s) => setSteps(s)} />
     </div>
+  );
+}
+
+function WidgetEditor({
+  shown,
+  onMove,
+  onHide,
+  onShow,
+}: {
+  shown: DashboardWidget[];
+  onMove: (w: DashboardWidget, delta: -1 | 1) => void;
+  onHide: (w: DashboardWidget) => void;
+  onShow: (w: DashboardWidget) => void;
+}) {
+  const hidden = ALL_DASHBOARD_WIDGETS.filter((w) => !shown.includes(w));
+  const rowBtn: React.CSSProperties = {
+    width: 32,
+    height: 32,
+    borderRadius: "var(--radius-sm)",
+    border: "1px solid var(--border-subtle)",
+    background: "var(--surface-card)",
+    color: "var(--text-secondary)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+  };
+  return (
+    <Card className="if-fade-up">
+      <CardTitle>Showing — drag order with the arrows</CardTitle>
+      <div style={{ display: "grid", gap: 6 }}>
+        {shown.map((w, i) => (
+          <div key={w} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)", background: "var(--surface-card)" }}>
+            <span style={{ flex: 1, fontSize: 14 }}>{DASHBOARD_WIDGET_LABELS[w]}</span>
+            <button type="button" style={{ ...rowBtn, opacity: i === 0 ? 0.4 : 1 }} disabled={i === 0} onClick={() => onMove(w, -1)} aria-label="Move up">
+              <ArrowUp size={15} />
+            </button>
+            <button type="button" style={{ ...rowBtn, opacity: i === shown.length - 1 ? 0.4 : 1 }} disabled={i === shown.length - 1} onClick={() => onMove(w, 1)} aria-label="Move down">
+              <ArrowDown size={15} />
+            </button>
+            <button type="button" style={rowBtn} onClick={() => onHide(w)} aria-label="Hide">
+              <EyeOff size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
+      {hidden.length > 0 && (
+        <>
+          <CardTitle style={{ marginTop: 16 }}>Hidden — tap to add</CardTitle>
+          <div style={{ display: "grid", gap: 6 }}>
+            {hidden.map((w) => (
+              <div key={w} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border-subtle)" }}>
+                <span style={{ flex: 1, fontSize: 14, color: "var(--text-muted)" }}>{DASHBOARD_WIDGET_LABELS[w]}</span>
+                <button type="button" style={rowBtn} onClick={() => onShow(w)} aria-label="Show">
+                  <Eye size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
   );
 }
 

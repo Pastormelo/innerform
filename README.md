@@ -73,8 +73,8 @@ API keys are read only in server code — they are never shipped to the client.
 | Feature | MVP behavior | Upgrade path |
 | --- | --- | --- |
 | AI coach chat | Rule-based engine: adherence assessment → tone mode (celebrate/encourage/nudge/challenge/reset) → style-voiced message quoting the user's own "why" | Set `AI_PROVIDER` env vars (above) |
-| Food search | Seed catalog **+ live Open Food Facts** full-text search (`search.openfoodfacts.org`) via `/api/food/search`, mapped to macros, micros, Nutri-Score grade, ingredients, and product photo | Add a paid provider (Nutritionix/FatSecret) behind the same `/api/food/*` contract if you outgrow OFF |
-| Barcode scan | Live: native `BarcodeDetector` + camera where supported (Chrome/Android), manual entry fallback (iOS Safari); both resolve against Open Food Facts via `/api/food/barcode` | — |
+| Food search | Seed catalog **+ live USDA FoodData Central** search via `/api/food/search`, mapped to macros, micros, and ingredients. USDA has no grade/image, so the letter grade is derived from a base-quality heuristic + goal-aware scoring. Needs `USDA_FDC_API_KEY` (free; falls back to `DEMO_KEY`, ~30 req/hr) | Add a paid provider (Nutritionix/FatSecret) behind the same `/api/food/*` contract |
+| Barcode scan | Live: native `BarcodeDetector` + camera where supported (Chrome/Android), manual entry fallback (iOS Safari); both resolve against USDA branded foods (by UPC) via `/api/food/barcode` | — |
 | Food label | Full FDA-style nutrition-facts panel with letter grade + ingredients, shown on tap | — |
 | Meal plan generation | Template-based generator with modes (meal prep / simple / high-calorie / fat-loss / budget), behind a branded ~8s generating animation | Swap generator internals for an AI call; the UI contract stays |
 | Steps & calories burned | **Manual + editable** entry, step goal, and charts. Exercise optionally adds to the calorie budget | Automatic **Apple Health / Health Connect** sync needs a native wrapper — see below |

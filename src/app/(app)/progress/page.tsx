@@ -162,7 +162,7 @@ export default function ProgressPage() {
             }}
           >
             <Camera size={14} /> Add photo
-            <input type="file" accept="image/*" capture="environment" onChange={onProgressPhoto} style={{ display: "none" }} />
+            <input type="file" accept="image/*" onChange={onProgressPhoto} style={{ display: "none" }} />
           </label>
         </div>
         {data.progressPhotos.length === 0 ? (

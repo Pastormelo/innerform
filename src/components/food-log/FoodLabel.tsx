@@ -218,6 +218,9 @@ export function FoodLabel({ food, quantity = 1, direction }: { food: FoodItem; q
           <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>{food.ingredients}</p>
         </div>
       )}
+      {food.source === "usda" && (
+        <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0 }}>Data from USDA FoodData Central. Verify against the physical label.</p>
+      )}
       {food.source === "open_food_facts" && (
         <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0 }}>Data from Open Food Facts. Verify against the physical label.</p>
       )}
